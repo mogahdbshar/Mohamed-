@@ -59,14 +59,14 @@ jobs:
       - name: ضبط استراتيجية المترجم لـ KSP (Configure Compiler for KSP)
         run: |
           if [ -f "gradle.properties" ]; then
-            sed -i 's/kotlin.compiler.execution.strategy=in-process/# kotlin.compiler.execution.strategy=in-process/g' gradle.properties
-            echo "Disabled in-process compiling strategy for GitHub runner successfully."
+            sed -i 's/kotlin.compiler.execution.strategy=in-process/kotlin.compiler.execution.strategy=daemon/g' gradle.properties
+            echo "Enabled compile daemon strategy for GitHub runner successfully."
           fi
 
       # 7. بناء وتصدير حزمة الأندرويد التجريبية الفورية (Debug APK)
       # هذه الحزمة تعمل فوراً على أي هاتف بدون الحاجة لمفاتيح توقيع معقدة
       - name: بناء وتجميع حزمة الـ APK (Assemble Debug APK)
-        run: ./gradlew assembleDebug
+        run: ./gradlew assembleDebug --daemon --no-configuration-cache -Pkotlin.compiler.execution.strategy=daemon
 
       # 8. جلب ملف الـ APK المرفوع ووضعه كملف مخرج (Artifact)
       # يمكنك تحميل ملف الـ APK هذا من تبويب "Actions" داخل مستودع جيت هاب الخاص بك مباشرة!
