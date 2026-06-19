@@ -24,20 +24,31 @@ interface ChannelDao {
     @Query("UPDATE channels SET name = :name, category = :category, logo = :logo WHERE url = :url")
     suspend fun updateChannelMetadata(url: String, name: String, category: String, logo: String?)
 
-    @Query("DELETE FROM channels WHERE url NOT IN (:validUrls)")
-    suspend fun deleteStaleChannels(validUrls: List<String>)
+    @Query("SELECT url FROM channels WHERE isFavorite = 1")
+    suspend fun getFavoriteUrls(): List<String>
+
+    @Query("DELETE FROM channels")
+    suspend fun deleteAllChannels()
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertChannelsList(channels: List<Channel>)
 
     @Transaction
     suspend fun syncChannels(channels: List<Channel>) {
-        val validUrls = channels.map { it.url }
-        deleteStaleChannels(validUrls)
-        for (channel in channels) {
-            val existing = getChannelByUrl(channel.url)
-            if (existing == null) {
-                insertChannel(channel)
+        val favoriteUrls = getFavoriteUrls().toSet()
+        deleteAllChannels()
+        
+        val preparedChannels = channels.map { channel ->
+            if (favoriteUrls.contains(channel.url)) {
+                channel.copy(isFavorite = true)
             } else {
-                updateChannelMetadata(channel.url, channel.name, channel.category, channel.logo)
+                channel
             }
+        }
+        
+        val chunkSize = 150
+        preparedChannels.chunked(chunkSize).forEach { chunk ->
+            insertChannelsList(chunk)
         }
     }
 }
