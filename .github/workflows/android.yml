@@ -45,12 +45,22 @@ jobs:
           fi
           chmod +x gradlew
 
-      # 5. بناء وتصدير حزمة الأندرويد التجريبية الفورية (Debug APK)
+      # 5. استعادة ملف مفتاح التوقيع من قاعدة base64 لتفادي خطأ التجميع في جيت هاب
+      - name: استعادة مفتاح التوقيع التجريبي (Decode Debug Keystore)
+        run: |
+          if [ -f "debug.keystore.base64" ]; then
+            echo "Decoding debug.keystore.base64..."
+            base64 -d debug.keystore.base64 > debug.keystore
+          else
+            echo "debug.keystore.base64 not found!"
+          fi
+
+      # 6. بناء وتتصدر حزمة الأندرويد التجريبية الفورية (Debug APK)
       # هذه الحزمة تعمل فوراً على أي هاتف بدون الحاجة لمفاتيح توقيع معقدة
       - name: بناء وتجميع حزمة الـ APK (Assemble Debug APK)
         run: ./gradlew assembleDebug --no-daemon
 
-      # 6. جلب ملف الـ APK المرفوع ووضعه كملف مخرج (Artifact)
+      # 7. جلب ملف الـ APK المرفوع ووضعه كملف مخرج (Artifact)
       # يمكنك تحميل ملف الـ APK هذا من تبويب "Actions" داخل مستودع جيت هاب الخاص بك مباشرة!
       - name: رفع ملف الـ APK للتنزيل المباشر (Upload APK Artifact)
         uses: actions/upload-artifact@v4
