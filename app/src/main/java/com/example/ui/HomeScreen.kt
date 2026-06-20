@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -35,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.Channel
 import com.example.viewmodel.MainViewModel
+import coil.compose.AsyncImage
 
 // High fidelity styling configurations matching the client's premium dark identity
 object DasturTheme {
@@ -51,6 +53,7 @@ object DasturTheme {
 fun HomeScreen(viewModel: MainViewModel) {
     val context = LocalContext.current
     var currentTab by remember { mutableStateOf("home") }
+    var showSplash by remember { mutableStateOf(true) }
 
     val channels by viewModel.filteredChannels.collectAsState()
     val favorites by viewModel.favoriteChannels.collectAsState()
@@ -59,54 +62,139 @@ fun HomeScreen(viewModel: MainViewModel) {
     val syncError by viewModel.syncError.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
 
-    // Base screen container with edge-to-edge support configuration
-    Scaffold(
-        bottomBar = {
-            DasturBottomNavigation(
-                currentTab = currentTab,
-                onTabSelected = { currentTab = it }
-            )
-        },
-        containerColor = DasturTheme.PureBlack,
-        modifier = Modifier.fillMaxSize()
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-        ) {
-            // Safe Drawing Header
-            DasturHeader(
-                onProfileClick = { currentTab = "settings" }
-            )
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(1800) // Instantly loads, displays logo, fades out black screen
+        showSplash = false
+    }
 
-            // Dynamic view based on the current bottom bar tab selection
-            when (currentTab) {
-                "home" -> HomeView(
-                    channels = channels,
-                    selectedChannel = selectedChannel,
-                    isLoading = isLoading,
-                    syncError = syncError,
-                    searchQuery = searchQuery,
-                    onSearchChange = { viewModel.setSearchQuery(it) },
-                    onChannelSelect = { viewModel.selectChannel(it) },
-                    onToggleFavorite = { viewModel.toggleFavorite(it) },
-                    favorites = favorites
+    if (showSplash) {
+        SplashView()
+    } else {
+        // Base screen container with edge-to-edge support configuration
+        Scaffold(
+            bottomBar = {
+                DasturBottomNavigation(
+                    currentTab = currentTab,
+                    onTabSelected = { currentTab = it }
                 )
-                "favorites" -> FavoritesView(
-                    favorites = favorites,
-                    selectedChannel = selectedChannel,
-                    onChannelSelect = {
-                        viewModel.selectChannel(it)
-                        currentTab = "home" // auto focus back to stream player
-                    },
-                    onToggleFavorite = { viewModel.toggleFavorite(it) }
+            },
+            containerColor = DasturTheme.PureBlack,
+            modifier = Modifier.fillMaxSize()
+        ) { innerPadding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+            ) {
+                // Safe Drawing Header
+                DasturHeader(
+                    onProfileClick = { currentTab = "settings" }
                 )
-                "settings" -> SettingsView(
-                    onRefreshList = { viewModel.syncFromNetwork() },
-                    isLoading = isLoading
+
+                // Dynamic view based on the current bottom bar tab selection
+                when (currentTab) {
+                    "home" -> HomeView(
+                        channels = channels,
+                        selectedChannel = selectedChannel,
+                        isLoading = isLoading,
+                        syncError = syncError,
+                        searchQuery = searchQuery,
+                        onSearchChange = { viewModel.setSearchQuery(it) },
+                        onChannelSelect = { viewModel.selectChannel(it) },
+                        onToggleFavorite = { viewModel.toggleFavorite(it) },
+                        favorites = favorites
+                    )
+                    "favorites" -> FavoritesView(
+                        favorites = favorites,
+                        selectedChannel = selectedChannel,
+                        onChannelSelect = {
+                            viewModel.selectChannel(it)
+                            currentTab = "home" // auto focus back to stream player
+                        },
+                        onToggleFavorite = { viewModel.toggleFavorite(it) }
+                    )
+                    "settings" -> SettingsView(
+                        onRefreshList = { viewModel.syncFromNetwork() },
+                        isLoading = isLoading
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SplashView() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFF040405)),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            // Stylized glowing logo wrapper
+            Box(
+                modifier = Modifier
+                    .size(114.dp)
+                    .background(Color(0xFFFF4500).copy(alpha = 0.05f), CircleShape)
+                    .border(2.dp, androidx.compose.ui.graphics.Brush.sweepGradient(
+                        colors = listOf(Color(0xFFFF4500), Color(0xFFFFD100), Color(0xFFFF4500))
+                    ), CircleShape)
+                    .padding(8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                // Main app logo asset with safe fallback
+                androidx.compose.foundation.Image(
+                    painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.dstwr_logo_asset_1781909924808),
+                    contentDescription = "Logo",
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(CircleShape),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
                 )
             }
+            
+            Spacer(modifier = Modifier.height(24.dp))
+            
+            // App name in beautiful sleek display
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "DSTWR",
+                    color = Color.White,
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Black,
+                    letterSpacing = 2.sp
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "TV",
+                    color = Color(0xFFFF4500),
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Black,
+                    letterSpacing = 2.sp
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            Text(
+                text = "الجيل الجديد للبث التلفزيوني والرياضي",
+                color = Color(0xFF7A7A85),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium
+            )
+            
+            Spacer(modifier = Modifier.height(48.dp))
+            
+            // Modern smooth circular loader
+            CircularProgressIndicator(
+                color = Color(0xFFFF4500),
+                strokeWidth = 3.dp,
+                modifier = Modifier.size(28.dp)
+            )
         }
     }
 }
@@ -124,14 +212,14 @@ fun DasturHeader(onProfileClick: () -> Unit) {
         // App Title in beautiful Arabic typeface
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = "دستور",
+                text = "DSTWR",
                 color = Color.White,
                 fontSize = 22.sp,
                 fontWeight = FontWeight.Black
             )
-            Spacer(modifier = Modifier.width(4.dp))
+            Spacer(modifier = Modifier.width(6.dp))
             Text(
-                text = "سبورت",
+                text = "TV",
                 color = DasturTheme.AccentOrange,
                 fontSize = 22.sp,
                 fontWeight = FontWeight.Black
@@ -217,45 +305,139 @@ fun HomeView(
                 }
             }
         } else {
-            // Outstanding Cinematic Banner
+            // Outstanding Cinematic Promo Banner
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(200.dp)
+                    .height(210.dp)
                     .padding(horizontal = 20.dp, vertical = 8.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(DasturTheme.GlassSurface)
-                    .border(1.dp, DasturTheme.BorderSoft, RoundedCornerShape(16.dp)),
-                contentAlignment = Alignment.Center
+                    .clip(RoundedCornerShape(20.dp))
             ) {
+                // Background artistic gradient representing sports stadium aura
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            androidx.compose.ui.graphics.Brush.linearGradient(
+                                colors = listOf(
+                                    Color(0xFF1E0B03),
+                                    Color(0xFF07000B),
+                                    Color(0xFF040405)
+                                )
+                            )
+                        )
+                )
+
+                // Glowing circular ambient light
+                Box(
+                    modifier = Modifier
+                        .size(240.dp)
+                        .align(Alignment.TopEnd)
+                        .offset(x = 5.dp, y = (-5).dp)
+                        .background(
+                            androidx.compose.ui.graphics.Brush.radialGradient(
+                                colors = listOf(Color(0xFFFF4500).copy(alpha = 0.12f), Color.Transparent)
+                            )
+                        )
+                )
+
+                // High quality modern grid visual
                 Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.padding(16.dp)
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(18.dp),
+                    verticalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.PlayArrow,
-                        contentDescription = null,
-                        tint = DasturTheme.AccentOrange,
-                        modifier = Modifier
-                            .size(46.dp)
-                            .background(DasturTheme.AccentOrangeGlow, CircleShape)
-                            .padding(8.dp)
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = "اختر بـاقة أو قـناة لتشغيل البث الفوري المباشر",
-                        color = Color.White,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "تحديثات وتأقلم تلقائي فائق السرعة",
-                        color = DasturTheme.TextMuted,
-                        fontSize = 11.sp,
-                        textAlign = TextAlign.Center
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .background(Color(0xFFFFD100), CircleShape)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "منصة البث الذكي الموحد",
+                                color = Color(0xFFFFD100),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        // Premium Tag
+                        Text(
+                            text = "بث عالي الدقة",
+                            color = Color.White.copy(alpha = 0.5f),
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 1.sp
+                        )
+                    }
+
+                    Column {
+                        Text(
+                            text = "بث مباشر مستقر وتلقائي للتفاعل الكلي",
+                            color = Color.White,
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Black
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "استمتع بمتابعة المحتوى الرياضي والترفيهي بجودة فائقة وبتأقلم تلقائي يضمن ثبات الاتصال وسلاسة العرض.",
+                            color = Color(0xFF9E9EA5),
+                            fontSize = 11.sp,
+                            lineHeight = 15.sp,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .background(Color(0xFFFF4500), RoundedCornerShape(8.dp))
+                                .padding(horizontal = 14.dp, vertical = 6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.PlayArrow,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "اختر باقة أو قناة الآن",
+                                color = Color.White,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        // Active servers badge indicator
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .background(Color(0xFF00FF7F), CircleShape)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "جودة الخدمة مستمرة ومثالية",
+                                color = Color(0xFF00FF7F),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -268,18 +450,30 @@ fun HomeView(
                 CircularProgressIndicator(color = DasturTheme.AccentOrange)
             }
         } else {
-            // Dynamically order categories to give Supreme Priority to Arabic Channels
-            // channels representing general sports like Bein Arabic and packages are sorted to first order
+            // Beautiful semantic sorting ordering for packages to prioritize Arabic Sports & Entertainment
+            val categoryOrder = listOf(
+                "باقة قنوات SSC الرياضية",
+                "باقة قنوات beIN Sports العربية",
+                "باقة قنوات أبوظبي الرياضية",
+                "باقة قنوات الكأس الرياضية",
+                "باقة VIP شاهد",
+                "باقة قنوات MBC الكاملة",
+                "باقة قنوات OSN الترفيهية",
+                "باقة الأحداث الرياضية والبوكسينج (PPV)",
+                "باقة أفلام ومسلسلات نتفليكس",
+                "باقة قنوات روتانا",
+                "باقة قنوات الأطفال والكرتون",
+                "باقة القنوات الوثائقية",
+                "باقة الأخبار والبرامج السياسية",
+                "باقة القنوات العربية العامة",
+                "باقة القنوات العالمية الأخرى"
+            )
+
             val categories = channels.groupBy { it.category }
                 .toList()
-                .sortedWith { o1, o2 ->
-                    val isArabic1 = o1.first.contains("عربي", true) || o1.first.contains("beIN", true) || o1.first.contains("سبورت", true)
-                    val isArabic2 = o2.first.contains("عربي", true) || o2.first.contains("beIN", true) || o2.first.contains("سبورت", true)
-                    when {
-                        isArabic1 && !isArabic2 -> -1
-                        !isArabic1 && isArabic2 -> 1
-                        else -> o1.first.compareTo(o2.first)
-                    }
+                .sortedBy { (categoryName, _) ->
+                    val idx = categoryOrder.indexOf(categoryName)
+                    if (idx != -1) idx else categoryOrder.size
                 }
 
             if (categories.isEmpty()) {
@@ -332,23 +526,39 @@ fun HomeView(
                                 )
                             }
 
-                            // Dynamic smooth sliding row for Channels matching perfect visual requirements
-                            LazyRow(
-                                modifier = Modifier.fillMaxWidth(),
-                                contentPadding = PaddingValues(horizontal = 20.dp),
-                                horizontalArrangement = Arrangement.spacedBy(14.dp)
-                            ) {
-                                items(groupChannels) { channel ->
-                                    val isFav = favorites.any { it.url == channel.url }
-                                    ChannelCard(
-                                        channel = channel,
-                                        isFavorite = isFav,
-                                        isActive = selectedChannel?.url == channel.url,
-                                        onSelect = { onChannelSelect(channel) },
-                                        onToggleFavorite = { onToggleFavorite(channel) }
-                                    )
-                                }
-                            }
+                             // Dynamic smooth sliding row for Channels matching perfect visual requirements
+                             val sortedGroupChannels = remember(groupChannels) {
+                                 groupChannels.sortedWith { o1, o2 ->
+                                     val isAr1 = o1.name.any { it in '\u0600'..'\u06FF' } || o1.name.uppercase(java.util.Locale.ROOT).contains("AR")
+                                     val isAr2 = o2.name.any { it in '\u0600'..'\u06FF' } || o2.name.uppercase(java.util.Locale.ROOT).contains("AR")
+                                     val hasFr1 = o1.name.uppercase(java.util.Locale.ROOT).contains("FR")
+                                     val hasFr2 = o2.name.uppercase(java.util.Locale.ROOT).contains("FR")
+                                     when {
+                                         isAr1 && !isAr2 -> -1
+                                         !isAr1 && isAr2 -> 1
+                                         !hasFr1 && hasFr2 -> -1
+                                         hasFr1 && !hasFr2 -> 1
+                                         else -> o1.name.compareTo(o2.name, ignoreCase = true)
+                                     }
+                                 }
+                             }
+
+                             LazyRow(
+                                 modifier = Modifier.fillMaxWidth(),
+                                 contentPadding = PaddingValues(horizontal = 20.dp),
+                                 horizontalArrangement = Arrangement.spacedBy(14.dp)
+                             ) {
+                                 items(sortedGroupChannels) { channel ->
+                                     val isFav = favorites.any { it.url == channel.url }
+                                     ChannelCard(
+                                         channel = channel,
+                                         isFavorite = isFav,
+                                         isActive = selectedChannel?.url == channel.url,
+                                         onSelect = { onChannelSelect(channel) },
+                                         onToggleFavorite = { onToggleFavorite(channel) }
+                                     )
+                                 }
+                             }
                         }
                     }
                 }
@@ -411,21 +621,43 @@ fun ChannelCard(
     onSelect: () -> Unit,
     onToggleFavorite: () -> Unit
 ) {
+    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+    val glowAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.4f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "glow"
+    )
+
     Box(
         modifier = Modifier
             .width(114.dp)
             .height(154.dp)
             .clip(RoundedCornerShape(16.dp))
-            .background(DasturTheme.GlassSurface)
+            .background(if (isActive) DasturTheme.SurfaceDark else DasturTheme.GlassSurface)
             .clickable(onClick = onSelect)
             .border(
-                1.dp,
-                if (isActive) DasturTheme.AccentOrange else DasturTheme.BorderSoft,
+                1.5.dp,
+                if (isActive) {
+                    androidx.compose.ui.graphics.Brush.linearGradient(
+                        colors = listOf(
+                            DasturTheme.AccentOrange.copy(alpha = glowAlpha),
+                            Color(0xFFFFD100).copy(alpha = glowAlpha)
+                        )
+                    )
+                } else {
+                    androidx.compose.ui.graphics.Brush.linearGradient(
+                        colors = listOf(DasturTheme.BorderSoft, DasturTheme.BorderSoft)
+                    )
+                },
                 RoundedCornerShape(16.dp)
             )
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // Upper Card Section for logo setup
+            // Upper Card Section for logo loading or fallback text
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -433,33 +665,71 @@ fun ChannelCard(
                     .background(Color(0xFF070708)),
                 contentAlignment = Alignment.Center
             ) {
-                // If logo is provided, we use a beautiful text preview backed by first char matching mock logo design
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = channel.name.take(2).uppercase(),
-                        color = if (isActive) DasturTheme.AccentOrange else Color.White,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.ExtraBold
+                if (!channel.logo.isNullOrBlank()) {
+                    AsyncImage(
+                        model = channel.logo,
+                        contentDescription = channel.name,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(8.dp)
+                            .clip(RoundedCornerShape(8.dp)),
+                        contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                        error = androidx.compose.ui.graphics.painter.ColorPainter(Color.Transparent),
+                        fallback = androidx.compose.ui.graphics.painter.ColorPainter(Color.Transparent)
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
+                } else {
+                    // Gorgeous, modern, dynamic typographic visual avatar placeholder
                     Box(
                         modifier = Modifier
+                            .fillMaxSize()
                             .background(
-                                if (isActive) DasturTheme.AccentOrange else DasturTheme.GlassSurface,
-                                RoundedCornerShape(4.dp)
-                            )
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                androidx.compose.ui.graphics.Brush.radialGradient(
+                                    colors = listOf(
+                                        Color(0xFF25252C),
+                                        Color(0xFF0C0C0F)
+                                    )
+                                )
+                            ),
+                        contentAlignment = Alignment.Center
                     ) {
+                        // Background decorative circle outline
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .border(1.dp, Color(0x1AFFFFFF), CircleShape)
+                        )
+                        
                         Text(
-                            text = "LIVE",
-                            color = Color.White,
-                            fontSize = 8.sp,
-                            fontWeight = FontWeight.Black
+                            text = if (channel.name.isNotBlank()) channel.name.take(2).uppercase() else "TV",
+                            color = if (isActive) DasturTheme.AccentOrange else Color(0xFFC5C5CE),
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 1.sp,
+                            textAlign = TextAlign.Center
                         )
                     }
                 }
 
-                // Interactive Star Button placement matching pure HTML aesthetic
+                // Smooth Live indicator overlay
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(4.dp)
+                        .background(
+                            if (isActive) DasturTheme.AccentOrange else Color(0x99000000),
+                            RoundedCornerShape(4.dp)
+                        )
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = "LIVE",
+                        color = Color.White,
+                        fontSize = 8.sp,
+                        fontWeight = FontWeight.Black
+                    )
+                }
+
+                // Interactive Star Button placement
                 IconButton(
                     onClick = onToggleFavorite,
                     modifier = Modifier
@@ -470,7 +740,7 @@ fun ChannelCard(
                     Icon(
                         imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                         contentDescription = "مفضلة",
-                        tint = if (isFavorite) Color(0xFFFFD700) else Color.White.copy(alpha = 0.4f),
+                        tint = if (isFavorite) Color(0xFFFFD100) else Color.White.copy(alpha = 0.4f),
                         modifier = Modifier.size(14.dp)
                     )
                 }
@@ -600,16 +870,19 @@ fun SettingsView(onRefreshList: () -> Unit, isLoading: Boolean) {
                 // Glowing Avatar
                 Box(
                     modifier = Modifier
-                        .size(68.dp)
+                        .size(76.dp)
                         .background(Color(0x19FF4500), CircleShape)
-                        .border(2.dp, DasturTheme.AccentOrange, CircleShape),
+                        .border(2.dp, DasturTheme.AccentOrange, CircleShape)
+                        .padding(4.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Settings,
-                        contentDescription = null,
-                        tint = DasturTheme.AccentOrange,
-                        modifier = Modifier.size(28.dp)
+                    androidx.compose.foundation.Image(
+                        painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.dstwr_logo_asset_1781909924808),
+                        contentDescription = "Logo",
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(CircleShape),
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
                     )
                 }
 
@@ -767,43 +1040,52 @@ fun DasturBottomNavigation(
     currentTab: String,
     onTabSelected: (String) -> Unit
 ) {
-    NavigationBar(
-        containerColor = DasturTheme.PureBlack,
-        tonalElevation = 8.dp,
+    Surface(
+        color = Color(0xD20D0D10),
+        shape = RoundedCornerShape(24.dp),
+        border = BorderStroke(1.dp, Color(0x12FFFFFF)),
         modifier = Modifier
             .fillMaxWidth()
-            .navigationBarsPadding() // Support Edge-to-Edge safely matching bottom navigation inset
+            .padding(horizontal = 24.dp, vertical = 12.dp)
+            .navigationBarsPadding()
     ) {
-        val tabs = listOf(
-            Triple("home", "الرئيسية", Icons.Default.Home),
-            Triple("favorites", "المفضلة", Icons.Default.Favorite),
-            Triple("settings", "الإعدادات", Icons.Default.Settings)
-        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp, horizontal = 12.dp),
+            horizontalArrangement = Arrangement.SpaceAround,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            val tabs = listOf(
+                Triple("home", "الرئيسية", Icons.Default.Home),
+                Triple("favorites", "المفضلة", Icons.Default.Favorite),
+                Triple("settings", "الإعدادات", Icons.Default.Settings)
+            )
 
-        tabs.forEach { (tabId, tabName, tabIcon) ->
-            val isActive = currentTab == tabId
-            NavigationBarItem(
-                selected = isActive,
-                onClick = { onTabSelected(tabId) },
-                icon = {
+            tabs.forEach { (tabId, tabName, tabIcon) ->
+                val isActive = currentTab == tabId
+                Column(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable { onTabSelected(tabId) }
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
                     Icon(
                         imageVector = tabIcon,
                         contentDescription = tabName,
-                        tint = if (isActive) DasturTheme.AccentOrange else Color.Gray
+                        tint = if (isActive) DasturTheme.AccentOrange else Color(0xFF7A7A85),
+                        modifier = Modifier.size(24.dp)
                     )
-                },
-                label = {
+                    Spacer(modifier = Modifier.height(3.dp))
                     Text(
                         text = tabName,
-                        color = if (isActive) Color.White else Color.Gray,
+                        color = if (isActive) Color.White else Color(0xFF7A7A85),
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold
                     )
-                },
-                colors = NavigationBarItemDefaults.colors(
-                    indicatorColor = DasturTheme.GlassSurface
-                )
-            )
+                }
+            }
         }
     }
 }

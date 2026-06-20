@@ -1,6 +1,6 @@
 {
-  "name": "Destour TV",
-  "description": "تطبيق رياضي تفاعلي",
+  "name": "DSTWR TV",
+  "description": "المنصة الذكية المتكاملة للبث الرياضي والترفيهي المباشر بدقة عالية وتنسيق تلقائي",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

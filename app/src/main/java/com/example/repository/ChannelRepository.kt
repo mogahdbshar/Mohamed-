@@ -41,6 +41,82 @@ class ChannelRepository(private val channelDao: ChannelDao) {
         return true
     }
 
+    private fun isArabicChannel(name: String): Boolean {
+        if (name.any { it in '\u0600'..'\u06FF' }) return true
+        val nameLower = name.lowercase(Locale.ROOT)
+        return nameLower.contains("ar:") || 
+               nameLower.contains("ar|") || 
+               nameLower.contains("ar_") || 
+               nameLower.contains("ar ") || 
+               nameLower.contains("ar-") ||
+               nameLower.contains("arabic") || 
+               nameLower.contains("arab") ||
+               nameLower.contains("ara")
+    }
+
+    private fun isFrenchChannel(name: String): Boolean {
+        val nameLower = name.lowercase(Locale.ROOT)
+        return nameLower.contains("fr:") || 
+               nameLower.contains("fr|") || 
+               nameLower.contains("fr_") || 
+               nameLower.contains("fr ") || 
+               nameLower.contains("fr-") ||
+               nameLower.contains("french") ||
+               (nameLower.contains("fr") && !nameLower.contains("ar"))
+    }
+
+    private fun determinePackage(name: String): String {
+        val nameUpper = name.uppercase(Locale.ROOT)
+        val nameLower = name.lowercase(Locale.ROOT)
+        
+        return when {
+            // High priority Arabic Sports
+            nameUpper.contains("SSC") -> {
+                if (isFrenchChannel(name)) {
+                    "باقة القنوات العالمية"
+                } else if (isArabicChannel(name) || nameUpper.contains("AR") || nameUpper.contains("ARA") || !nameUpper.contains("FR")) {
+                    "باقة قنوات SSC الرياضية"
+                } else {
+                    "باقة القنوات العالمية"
+                }
+            }
+            nameUpper.contains("BEIN") && (nameUpper.contains("SPORTS") || nameUpper.contains("SP") || nameUpper.contains("SPORT")) -> {
+                if (isFrenchChannel(name)) {
+                    "باقة القنوات العالمية"
+                } else if (isArabicChannel(name) || nameUpper.contains("AR") || nameUpper.contains("ARA") || !nameUpper.contains("FR")) {
+                    "باقة قنوات beIN Sports العربية"
+                } else {
+                    "باقة القنوات العالمية"
+                }
+            }
+            nameUpper.contains("AD SPORT") || nameUpper.contains("AD_SPORT") || nameUpper.contains("AD SPORTS") -> "باقة قنوات أبوظبي الرياضية"
+            nameLower.contains("alkass") || nameLower.contains("الكس") || nameLower.contains("الكأس") -> "باقة قنوات الكأس الرياضية"
+            
+            // VIP / Entertainment
+            nameLower.contains("shahid") || nameLower.contains("sh") && nameLower.contains("vip") -> "باقة VIP شاهد"
+            nameUpper.contains("OSN") -> "باقة قنوات OSN الترفيهية"
+            nameUpper.contains("NETFLIX") || nameUpper.contains("AFLAM") -> "باقة أفلام ومسلسلات نتفليكس"
+            
+            // Arabic network packages
+            nameUpper.contains("MBC") -> "باقة قنوات MBC الكاملة"
+            nameLower.contains("rotana") || nameLower.contains("روتانا") -> "باقة قنوات روتانا"
+            
+            // Kids / News / Documentary
+            nameLower.contains("spacetoon") || nameLower.contains("kids") || nameLower.contains("أطفال") || nameLower.contains("كرتون") -> "باقة قنوات الأطفال والكرتون"
+            nameLower.contains("news") || nameLower.contains("أخبار") || nameLower.contains("الجزيرة") || nameLower.contains("jazeera") || nameLower.contains("العربية") || nameLower.contains("arabiya") -> "باقة الأخبار والبرامج السياسية"
+            nameLower.contains("national") || nameLower.contains("nat geo") || nameLower.contains("وثائق") || nameLower.contains("doc") -> "باقة القنوات الوثائقية"
+            
+            // Generic Arabic Channels
+            isArabicChannel(name) -> "باقة القنوات العربية العامة"
+            
+            // PPV Box / Events
+            nameUpper.contains("PPV") || nameUpper.contains("BOXING") || nameUpper.contains("EVENT") -> "باقة الأحداث الرياضية والبوكسينج"
+            
+            // Others
+            else -> "باقة القنوات العالمية الأخرى"
+        }
+    }
+
     suspend fun toggleFavorite(url: String, isFavorite: Boolean) {
         withContext(Dispatchers.IO) {
             channelDao.updateFavorite(url, isFavorite)
@@ -63,10 +139,17 @@ class ChannelRepository(private val channelDao: ChannelDao) {
                 val decryptedJson = CryptoHelper.decrypt(bodyString.trim()) ?: return@withContext Result.failure(Exception("Decryption error"))
                 val rawList = adapter.fromJson(decryptedJson) ?: emptyList()
 
-                // Execute ultra-strict family filtering matching user demand
-                val filteredList = rawList.filter { isFamilyFriendly(it) }
+                // Execute ultra-strict family filtering and map them to beautiful Arabic packages
+                val processedList = rawList.filter { isFamilyFriendly(it) }
+                    .map { channel ->
+                        val cleanName = channel.name.trim()
+                        channel.copy(
+                            name = cleanName,
+                            category = determinePackage(cleanName)
+                        )
+                    }
 
-                channelDao.syncChannels(filteredList)
+                channelDao.syncChannels(processedList)
                 Result.success(Unit)
             }
         } catch (e: Exception) {

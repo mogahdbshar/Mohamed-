@@ -3,21 +3,29 @@ package com.example.ui
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.widget.FrameLayout
 import androidx.annotation.OptIn
+import androidx.compose.animation.*
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.Player
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.util.UnstableApi
@@ -26,6 +34,71 @@ import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
+import kotlinx.coroutines.delay
+
+@Composable
+fun CustomPauseIcon(tint: Color = Color.White) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(modifier = Modifier.size(width = 4.dp, height = 16.dp).background(tint, RoundedCornerShape(2.dp)))
+        Box(modifier = Modifier.size(width = 4.dp, height = 16.dp).background(tint, RoundedCornerShape(2.dp)))
+    }
+}
+
+@Composable
+fun CustomVolumeIcon(tint: Color = Color.White) {
+    Box(modifier = Modifier.size(18.dp), contentAlignment = Alignment.Center) {
+        androidx.compose.foundation.Canvas(modifier = Modifier.size(16.dp)) {
+            val path = androidx.compose.ui.graphics.Path().apply {
+                moveTo(2.0.dp.toPx(), 5.0.dp.toPx())
+                lineTo(5.0.dp.toPx(), 5.0.dp.toPx())
+                lineTo(9.0.dp.toPx(), 1.0.dp.toPx())
+                lineTo(9.0.dp.toPx(), 15.0.dp.toPx())
+                lineTo(5.0.dp.toPx(), 11.0.dp.toPx())
+                lineTo(2.0.dp.toPx(), 11.0.dp.toPx())
+                close()
+            }
+            drawPath(path, color = tint)
+            
+            drawArc(
+                color = tint,
+                startAngle = -45f,
+                sweepAngle = 90f,
+                useCenter = false,
+                style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.5.dp.toPx()),
+                topLeft = androidx.compose.ui.geometry.Offset(3.0.dp.toPx(), 2.0.dp.toPx()),
+                size = androidx.compose.ui.geometry.Size(8.0.dp.toPx(), 12.0.dp.toPx())
+            )
+        }
+    }
+}
+
+@Composable
+fun CustomMuteIcon(tint: Color = Color.White) {
+    Box(modifier = Modifier.size(18.dp), contentAlignment = Alignment.Center) {
+        androidx.compose.foundation.Canvas(modifier = Modifier.size(16.dp)) {
+            val path = androidx.compose.ui.graphics.Path().apply {
+                moveTo(2.0.dp.toPx(), 5.0.dp.toPx())
+                lineTo(5.0.dp.toPx(), 5.0.dp.toPx())
+                lineTo(9.0.dp.toPx(), 1.0.dp.toPx())
+                lineTo(9.0.dp.toPx(), 15.0.dp.toPx())
+                lineTo(5.0.dp.toPx(), 11.0.dp.toPx())
+                lineTo(2.0.dp.toPx(), 11.0.dp.toPx())
+                close()
+            }
+            drawPath(path, color = tint.copy(alpha = 0.5f))
+            
+            drawLine(
+                color = tint,
+                start = androidx.compose.ui.geometry.Offset(2.0.dp.toPx(), 2.0.dp.toPx()),
+                end = androidx.compose.ui.geometry.Offset(14.0.dp.toPx(), 14.0.dp.toPx()),
+                strokeWidth = 2.0.dp.toPx()
+            )
+        }
+    }
+}
 
 @OptIn(UnstableApi::class)
 @Composable
@@ -33,73 +106,137 @@ fun VideoPlayer(url: String, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     var isBuffering by remember { mutableStateOf(true) }
     var isError by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf("تعذر تحميل البث المباشر حالياً") }
 
-    // Custom data source with matching User-Agent & Referer for smooth bypassed authentication
-    val httpDataSourceFactory = remember {
-        DefaultHttpDataSource.Factory()
-            .setUserAgent("IPTVSmarters/1.0.0")
-            .setDefaultRequestProperties(mapOf("Referer" to "http://12k-service.org/"))
-    }
+    var isPlaying by remember { mutableStateOf(true) }
+    var isMuted by remember { mutableStateOf(false) }
+    var showControls by remember { mutableStateOf(false) }
 
-    // High performance load controller designed strictly to minimize background network usage
-    val loadControl = remember {
-        DefaultLoadControl.Builder()
-            .setBufferDurationsMs(
-                5000,   // Min buffer: starts fast
-                15000,  // Max buffer: avoids excessive internet waste
-                1500,   // Buffer for playback: immediate starts
-                2000    // Buffer for play after rebuffering
-            )
-            .build()
-    }
-
-    val exoPlayer = remember {
-        val mediaSourceFactory = DefaultMediaSourceFactory(context)
-            .setDataSourceFactory(httpDataSourceFactory)
-
-        ExoPlayer.Builder(context)
-            .setMediaSourceFactory(mediaSourceFactory)
-            .setLoadControl(loadControl)
-            .build().apply {
-                repeatMode = Player.REPEAT_MODE_OFF
-            }
-    }
-
-    // Handle play state and state updates reactively
-    LaunchedEffect(url) {
-        if (url.isNotBlank()) {
-            isBuffering = true
-            isError = false
+    // Use remember to keep the same player instance across recompositions
+    val exoPlayer = remember(context) {
+        try {
+            val httpDataSourceFactory = DefaultHttpDataSource.Factory()
+                .setUserAgent("IPTVSmarters/1.0.0")
+                .setAllowCrossProtocolRedirects(true)
+                .setDefaultRequestProperties(mapOf(
+                    "Referer" to "http://12k-service.org/",
+                    "User-Agent" to "IPTVSmarters/1.0.0"
+                ))
             
-            val mediaItem = MediaItem.fromUri(url)
-            exoPlayer.setMediaItem(mediaItem)
-            exoPlayer.prepare()
-            exoPlayer.playWhenReady = true
+            val mediaSourceFactory = DefaultMediaSourceFactory(context.applicationContext)
+                .setDataSourceFactory(httpDataSourceFactory)
+
+            val loadControl = DefaultLoadControl.Builder()
+                .build()
+
+            ExoPlayer.Builder(context.applicationContext)
+                .setMediaSourceFactory(mediaSourceFactory)
+                .setLoadControl(loadControl)
+                .build().apply {
+                    repeatMode = Player.REPEAT_MODE_OFF
+                }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            try {
+                ExoPlayer.Builder(context.applicationContext).build()
+            } catch (inner: Exception) {
+                inner.printStackTrace()
+                null
+            }
         }
     }
 
-    // Attach ExoPlayer event trackers
-    DisposableEffect(exoPlayer) {
-        val listener = object : Player.Listener {
-            override fun onPlaybackStateChanged(playbackState: Int) {
-                isBuffering = playbackState == Player.STATE_BUFFERING
-                isError = false
-            }
+    // Auto-hide controls effect
+    LaunchedEffect(showControls) {
+        if (showControls) {
+            delay(3500)
+            showControls = false
+        }
+    }
 
-            override fun onPlayerError(error: PlaybackException) {
+    // Sync isPlaying state with exoplayer updates
+    DisposableEffect(url, exoPlayer) {
+        val player = exoPlayer
+        var listener: Player.Listener? = null
+        
+        if (player != null && url.isNotBlank()) {
+            try {
+                isBuffering = true
+                isError = false
+                isPlaying = player.isPlaying
+                
+                listener = object : Player.Listener {
+                    override fun onPlaybackStateChanged(playbackState: Int) {
+                        isBuffering = playbackState == Player.STATE_BUFFERING
+                        isError = false
+                    }
+
+                    override fun onIsPlayingChanged(playing: Boolean) {
+                        isPlaying = playing
+                    }
+
+                    override fun onPlayerError(error: PlaybackException) {
+                        isBuffering = false
+                        isError = true
+                        errorMessage = "عذراً، تعذر الاتصال بالبث المباشر. يرجى التحقق من اتصالك بالشبكة وإعادة المحاولة."
+                    }
+                }
+                player.addListener(listener)
+                
+                // Content-Type Adaptive Stream routing for IPTV
+                val mediaItem = MediaItem.Builder()
+                    .setUri(url)
+                    .apply {
+                        val urlLower = url.lowercase()
+                        if (urlLower.contains(".m3u8") || urlLower.contains("m3u8")) {
+                            setMimeType(MimeTypes.APPLICATION_M3U8)
+                        } else if (urlLower.contains(".mpd") || urlLower.contains("mpd")) {
+                            setMimeType(MimeTypes.APPLICATION_MPD)
+                        }
+                    }
+                    .build()
+                
+                player.setMediaItem(mediaItem)
+                player.prepare()
+                player.playWhenReady = true
+            } catch (e: Exception) {
+                e.printStackTrace()
                 isBuffering = false
                 isError = true
+                errorMessage = "عذراً، حدث خطأ أثناء تشغيل البث المباشر. يرجى إعادة المحاولة."
             }
         }
-        exoPlayer.addListener(listener)
+
         onDispose {
-            exoPlayer.removeListener(listener)
+            if (player != null) {
+                try {
+                    player.stop()
+                    player.clearMediaItems()
+                    if (listener != null) {
+                        player.removeListener(listener)
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
         }
     }
 
-    DisposableEffect(Unit) {
+    // Release ExoPlayer on dynamic component lifecycle exit
+    DisposableEffect(exoPlayer) {
         onDispose {
-            exoPlayer.release()
+            try {
+                exoPlayer?.release()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    // Track dynamic muting status on exoplayer
+    LaunchedEffect(isMuted, exoPlayer) {
+        exoPlayer?.let {
+            it.volume = if (isMuted) 0f else 1f
         }
     }
 
@@ -107,32 +244,254 @@ fun VideoPlayer(url: String, modifier: Modifier = Modifier) {
         modifier = modifier
             .fillMaxWidth()
             .aspectRatio(16f / 9f)
-            .background(Color.Black),
+            .background(Color.Black)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) {
+                showControls = !showControls
+            },
         contentAlignment = Alignment.Center
     ) {
-        AndroidView(
-            factory = { ctx ->
-                PlayerView(ctx).apply {
-                    player = exoPlayer
-                    useController = true
-                    layoutParams = FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT)
-                }
-            },
-            modifier = Modifier.fillMaxSize()
-        )
+        if (exoPlayer != null) {
+            AndroidView(
+                factory = { ctx ->
+                    try {
+                        PlayerView(ctx).apply {
+                            this.player = exoPlayer
+                            // Disable standard ExoPlayer black bar controllers to draw our stunning premium Jetpack Compose overlay
+                            useController = false
+                            layoutParams = FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT)
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        FrameLayout(ctx)
+                    }
+                },
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
+            Text(
+                text = "مشغل الوسائط غير متوفر حالياً",
+                color = Color.White,
+                fontSize = 12.sp,
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
 
-        if (isBuffering) {
-            CircularProgressIndicator(color = Color(0xFFFF4500))
+        // Modern Sleek Compose Control Layer Overlays!
+        AnimatedVisibility(
+            visible = showControls,
+            enter = fadeIn() + expandVertically(),
+            exit = fadeOut() + shrinkVertically(),
+            modifier = Modifier.fillMaxSize()
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.55f))
+            ) {
+                // Top Overlay Header: Live Badge & Glow Status
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.TopCenter)
+                        .padding(14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Modern LIVE Pulse badge
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .background(Color(0xFFFF4500).copy(alpha = 0.85f), RoundedCornerShape(20.dp))
+                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .background(Color.White, CircleShape)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "بث مباشر",
+                            color = Color.White,
+                            fontSize = 10.sp,
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                    }
+
+                    // Quality Badge
+                    Text(
+                        text = "1080p FHD",
+                        color = Color(0xFFFFD100),
+                        fontSize = 10.sp,
+                        modifier = Modifier
+                            .border(1.dp, Color(0xFFFFD100).copy(alpha = 0.4f), RoundedCornerShape(4.dp))
+                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                        style = MaterialTheme.typography.labelSmall
+                    )
+                }
+
+                // Central Interactive Play/Pause glow button
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .size(54.dp)
+                        .background(Color.White.copy(alpha = 0.15f), CircleShape)
+                        .border(1.5.dp, Color.White.copy(alpha = 0.5f), CircleShape)
+                        .clickable {
+                            if (isPlaying) {
+                                exoPlayer?.pause()
+                            } else {
+                                exoPlayer?.play()
+                            }
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (isPlaying) {
+                        CustomPauseIcon(tint = Color.White)
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.PlayArrow,
+                            contentDescription = "Play",
+                            tint = Color.White,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+                }
+
+                // Bottom Control Layout: Mute, Refresh, and Settings Quick Toggles
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.BottomCenter)
+                        .background(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f))
+                            )
+                        )
+                        .padding(12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Custom Volume controller using vector graphics
+                        IconButton(
+                            onClick = { isMuted = !isMuted },
+                            modifier = Modifier
+                                .size(34.dp)
+                                .background(Color.White.copy(alpha = 0.1f), CircleShape)
+                        ) {
+                            if (isMuted) {
+                                CustomMuteIcon(tint = Color.White)
+                            } else {
+                                CustomVolumeIcon(tint = Color.White)
+                            }
+                        }
+
+                        // Stream Refresh Button (re-buffers to stay ultra-live without sync lag)
+                        IconButton(
+                            onClick = {
+                                exoPlayer?.let {
+                                    it.stop()
+                                    it.prepare()
+                                    it.play()
+                                }
+                            },
+                            modifier = Modifier
+                                .size(34.dp)
+                                .background(Color.White.copy(alpha = 0.1f), CircleShape)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = "Re-buffer",
+                                tint = Color.White,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+
+                    Text(
+                        text = "معدل الإطارات: 60 إطاراً/ثانية | جودة تلقائية",
+                        color = Color.White.copy(alpha = 0.5f),
+                        fontSize = 9.sp,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+        }
+
+        if (isBuffering && !isError) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.4f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator(
+                        color = Color(0xFFFF4500),
+                        strokeWidth = 3.dp,
+                        modifier = Modifier.size(36.dp)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "جاري تهيئة البث السريع...",
+                        color = Color.White.copy(alpha = 0.8f),
+                        fontSize = 11.sp
+                    )
+                }
+            }
         }
 
         if (isError) {
-            androidx.compose.material3.Text(
-                text = "❌ فشل تحميل البث المباشر. يرجى المحاولة لاحقاً",
-                color = Color.White,
-                fontSize = 12.sp,
-                style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
-                modifier = Modifier.background(Color.Black.copy(alpha = 0.7f), shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp))
-            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.85f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(16.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        contentDescription = "Error",
+                        tint = Color(0xFFFF4500),
+                        modifier = Modifier.size(42.dp)
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = errorMessage,
+                        color = Color.White,
+                        fontSize = 11.sp,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(horizontal = 14.dp),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Button(
+                        onClick = {
+                            exoPlayer?.let {
+                                it.stop()
+                                it.prepare()
+                                it.play()
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF4500)),
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                    ) {
+                        Text("إعادة المحاولة", color = Color.White, fontSize = 11.sp)
+                    }
+                }
+            }
         }
     }
 }
