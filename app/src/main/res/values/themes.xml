@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.MyApplication" parent="android:Theme.DeviceDefault.NoActionBar">
+    <style name="Theme.MyApplication" parent="android:Theme.Material.NoActionBar">
         <item name="android:windowBackground">@color/activity_bg</item>
         <item name="android:statusBarColor">@color/activity_bg</item>
         <item name="android:navigationBarColor">@color/activity_bg</item>

@@ -1,3 +1,5 @@
+import java.io.File
+
 plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.kotlin.compose)
@@ -122,3 +124,34 @@ dependencies {
   "ksp"(libs.androidx.room.compiler)
   "ksp"(libs.moshi.kotlin.codegen)
 }
+
+tasks.register("copyLauncherIcons") {
+    val logo = file("src/main/res/drawable/dstwr_logo_asset_1781909924808.jpg")
+    val resDir = file("src/main/res")
+    val mipmapDirectories = listOf("hdpi", "mdpi", "xhdpi", "xxhdpi", "xxxhdpi").map { file("src/main/res/mipmap-$it") }
+    
+    inputs.file(logo)
+    outputs.dirs(mipmapDirectories)
+    
+    doLast {
+        if (logo.exists()) {
+            val densities = listOf("hdpi", "mdpi", "xhdpi", "xxhdpi", "xxxhdpi")
+            for (density in densities) {
+                val mipmapDir = File(resDir, "mipmap-${density}")
+                mipmapDir.mkdirs()
+                
+                logo.copyTo(File(mipmapDir, "ic_launcher.jpg"), overwrite = true)
+                logo.copyTo(File(mipmapDir, "ic_launcher_round.jpg"), overwrite = true)
+            }
+            println("Successfully copied launcher icons to all density directories.")
+        } else {
+            println("Warning: dstwr_logo_asset_1781909924808.jpg not found in drawable directory.")
+        }
+    }
+}
+
+// Make sure our copy task runs before resource compilation tasks
+tasks.matching { it.name.startsWith("preBuild") }.all {
+    dependsOn("copyLauncherIcons")
+}
+
