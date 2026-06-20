@@ -147,8 +147,8 @@ fun SplashView() {
                 contentAlignment = Alignment.Center
             ) {
                 // Main app logo asset with safe fallback
-                androidx.compose.foundation.Image(
-                    painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.dstwr_logo_asset_1781909924808),
+                coil.compose.AsyncImage(
+                    model = com.example.R.drawable.dstwr_logo_asset_1781909924808,
                     contentDescription = "Logo",
                     modifier = Modifier
                         .fillMaxSize()
@@ -876,8 +876,8 @@ fun SettingsView(onRefreshList: () -> Unit, isLoading: Boolean) {
                         .padding(4.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    androidx.compose.foundation.Image(
-                        painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.dstwr_logo_asset_1781909924808),
+                    coil.compose.AsyncImage(
+                        model = com.example.R.drawable.dstwr_logo_asset_1781909924808,
                         contentDescription = "Logo",
                         modifier = Modifier
                             .fillMaxSize()
