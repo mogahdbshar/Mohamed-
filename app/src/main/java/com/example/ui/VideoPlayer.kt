@@ -34,7 +34,12 @@ import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
+import androidx.media3.common.Format
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import android.content.pm.ActivityInfo
+import android.app.Activity
 
 @Composable
 fun CustomPauseIcon(tint: Color = Color.White) {
@@ -102,8 +107,15 @@ fun CustomMuteIcon(tint: Color = Color.White) {
 
 @OptIn(UnstableApi::class)
 @Composable
-fun VideoPlayer(url: String, modifier: Modifier = Modifier) {
+fun VideoPlayer(
+    url: String, 
+    isFullscreen: Boolean,
+    onFullscreenToggle: () -> Unit,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     var isBuffering by remember { mutableStateOf(true) }
     var isError by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf("تعذر تحميل البث المباشر حالياً") }
@@ -111,6 +123,8 @@ fun VideoPlayer(url: String, modifier: Modifier = Modifier) {
     var isPlaying by remember { mutableStateOf(true) }
     var isMuted by remember { mutableStateOf(false) }
     var showControls by remember { mutableStateOf(false) }
+    var videoResolution by remember { mutableStateOf("تلقائي") }
+    var stopJob by remember { mutableStateOf<Job?>(null) }
 
     // Use remember to keep the same player instance across recompositions
     val exoPlayer = remember(context) {
@@ -126,7 +140,14 @@ fun VideoPlayer(url: String, modifier: Modifier = Modifier) {
             val mediaSourceFactory = DefaultMediaSourceFactory(context.applicationContext)
                 .setDataSourceFactory(httpDataSourceFactory)
 
+            // Smart Load Control to prevent network drain and bloat while keeping stream ultra-live
             val loadControl = DefaultLoadControl.Builder()
+                .setBufferDurationsMs(
+                    10000,   // Min buffer (10s) to keep it light
+                    30000,   // Max buffer (30s) prevents unneeded network draining
+                    1000,    // Buffer for playback to start quickly
+                    1500     // Buffer after rebuffer
+                )
                 .build()
 
             ExoPlayer.Builder(context.applicationContext)
@@ -163,22 +184,53 @@ fun VideoPlayer(url: String, modifier: Modifier = Modifier) {
             try {
                 isBuffering = true
                 isError = false
-                isPlaying = player.isPlaying
-                
+                isPlaying = true
+                videoResolution = "تلقائي"
+
                 listener = object : Player.Listener {
                     override fun onPlaybackStateChanged(playbackState: Int) {
                         isBuffering = playbackState == Player.STATE_BUFFERING
                         isError = false
                     }
 
+                    override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
+                        if (videoSize.height > 0) {
+                            videoResolution = "${videoSize.height}p"
+                            if (videoSize.height >= 1080) videoResolution += " FHD"
+                            else if (videoSize.height >= 720) videoResolution += " HD"
+                        }
+                    }
+
                     override fun onIsPlayingChanged(playing: Boolean) {
                         isPlaying = playing
+                        if (!playing) {
+                            stopJob?.cancel()
+                            stopJob = coroutineScope.launch {
+                                delay(30_000L) // Wait 30 seconds
+                                if (player.playbackState != Player.STATE_IDLE) {
+                                    player.stop()
+                                    player.clearMediaItems()
+                                }
+                            }
+                        } else {
+                            stopJob?.cancel()
+                        }
                     }
 
                     override fun onPlayerError(error: PlaybackException) {
                         isBuffering = false
                         isError = true
-                        errorMessage = "عذراً، تعذر الاتصال بالبث المباشر. يرجى التحقق من اتصالك بالشبكة وإعادة المحاولة."
+                        errorMessage = when (error.errorCode) {
+                            PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
+                            PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT ->
+                                "الاتصال بالإنترنت غير مستقر. جاري محاولة إعادة الاتصال تلقائياً..."
+                            PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS ->
+                                "عذراً، البث مقطوع من المصدر حالياً. يرجى المحاولة لاحقاً."
+                            PlaybackException.ERROR_CODE_DECODER_INIT_FAILED,
+                            PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED ->
+                                "صيغة البث غير مدعومة على هذا الجهاز."
+                            else -> "حدث خطأ غير متوقع أثناء تشغيل القناة. جاري المعالجة..."
+                        }
                     }
                 }
                 player.addListener(listener)
@@ -237,6 +289,16 @@ fun VideoPlayer(url: String, modifier: Modifier = Modifier) {
     LaunchedEffect(isMuted, exoPlayer) {
         exoPlayer?.let {
             it.volume = if (isMuted) 0f else 1f
+        }
+    }
+
+    // Handle Orientation manually
+    LaunchedEffect(isFullscreen) {
+        val activity = context as? Activity ?: return@LaunchedEffect
+        if (isFullscreen) {
+            activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        } else {
+            activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         }
     }
 
@@ -323,15 +385,31 @@ fun VideoPlayer(url: String, modifier: Modifier = Modifier) {
                     }
 
                     // Quality Badge
-                    Text(
-                        text = "1080p FHD",
-                        color = Color(0xFFFFD100),
-                        fontSize = 10.sp,
-                        modifier = Modifier
-                            .border(1.dp, Color(0xFFFFD100).copy(alpha = 0.4f), RoundedCornerShape(4.dp))
-                            .padding(horizontal = 6.dp, vertical = 2.dp),
-                        style = MaterialTheme.typography.labelSmall
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = videoResolution,
+                            color = Color(0xFFFFD100),
+                            fontSize = 10.sp,
+                            modifier = Modifier
+                                .border(1.dp, Color(0xFFFFD100).copy(alpha = 0.4f), RoundedCornerShape(4.dp))
+                                .padding(horizontal = 6.dp, vertical = 2.dp),
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        IconButton(
+                            onClick = onClose,
+                            modifier = Modifier
+                                .size(28.dp)
+                                .background(Color.White.copy(alpha = 0.15f), CircleShape)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Close",
+                                tint = Color.White,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
                 }
 
                 // Central Interactive Play/Pause glow button
@@ -345,6 +423,12 @@ fun VideoPlayer(url: String, modifier: Modifier = Modifier) {
                             if (isPlaying) {
                                 exoPlayer?.pause()
                             } else {
+                                if (exoPlayer?.playbackState == Player.STATE_IDLE) {
+                                    // re-prepare if it was stopped after 30s
+                                    val mediaItem = MediaItem.Builder().setUri(url).build()
+                                    exoPlayer?.setMediaItem(mediaItem)
+                                    exoPlayer?.prepare()
+                                }
                                 exoPlayer?.play()
                             }
                         },
@@ -410,6 +494,21 @@ fun VideoPlayer(url: String, modifier: Modifier = Modifier) {
                             Icon(
                                 imageVector = Icons.Default.Refresh,
                                 contentDescription = "Re-buffer",
+                                tint = Color.White,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                        
+                        // Fullscreen Toggle Button
+                        IconButton(
+                            onClick = onFullscreenToggle,
+                            modifier = Modifier
+                                .size(34.dp)
+                                .background(Color.White.copy(alpha = 0.1f), CircleShape)
+                        ) {
+                            Icon(
+                                imageVector = if (isFullscreen) Icons.Default.Close else Icons.Default.List, // Assuming no Fullscreen icon in Default
+                                contentDescription = "Fullscreen",
                                 tint = Color.White,
                                 modifier = Modifier.size(16.dp)
                             )

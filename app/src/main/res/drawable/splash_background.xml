@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/activity_bg" />
+    <item>
+        <bitmap
+            android:src="@drawable/dstwr_logo_asset_1781909924808"
+            android:gravity="center" />
+    </item>
+</layer-list>

@@ -33,6 +33,9 @@ interface ChannelDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertChannelsList(channels: List<Channel>)
 
+    @Query("SELECT COUNT(*) FROM channels")
+    suspend fun getChannelsCount(): Int
+
     @Transaction
     suspend fun syncChannels(channels: List<Channel>) {
         val favoriteUrls = getFavoriteUrls().toSet()

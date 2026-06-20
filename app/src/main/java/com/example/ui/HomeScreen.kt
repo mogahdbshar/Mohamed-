@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.sp
 import com.example.model.Channel
 import com.example.viewmodel.MainViewModel
 import coil.compose.AsyncImage
+import kotlinx.coroutines.launch
 
 // High fidelity styling configurations matching the client's premium dark identity
 object DasturTheme {
@@ -54,6 +55,9 @@ fun HomeScreen(viewModel: MainViewModel) {
     val context = LocalContext.current
     var currentTab by remember { mutableStateOf("home") }
     var showSplash by remember { mutableStateOf(true) }
+    var isFullscreen by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
 
     val channels by viewModel.filteredChannels.collectAsState()
     val favorites by viewModel.favoriteChannels.collectAsState()
@@ -65,6 +69,12 @@ fun HomeScreen(viewModel: MainViewModel) {
     LaunchedEffect(Unit) {
         kotlinx.coroutines.delay(1800) // Instantly loads, displays logo, fades out black screen
         showSplash = false
+        if (!com.example.util.NetworkUtils.isInternetAvailable(context)) {
+            snackbarHostState.showSnackbar(
+                message = "لا يوجد اتصال بالإنترنت. يرجى التحقق من الشبكة",
+                duration = SnackbarDuration.Short
+            )
+        }
     }
 
     if (showSplash) {
@@ -72,11 +82,25 @@ fun HomeScreen(viewModel: MainViewModel) {
     } else {
         // Base screen container with edge-to-edge support configuration
         Scaffold(
+            snackbarHost = { 
+                SnackbarHost(hostState = snackbarHostState) { data ->
+                    Snackbar(
+                        containerColor = DasturTheme.SurfaceDark,
+                        contentColor = Color.White,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.padding(16.dp)
+                    ) {
+                        Text(text = data.visuals.message, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    }
+                }
+            },
             bottomBar = {
-                DasturBottomNavigation(
-                    currentTab = currentTab,
-                    onTabSelected = { currentTab = it }
-                )
+                if (!isFullscreen) {
+                    DasturBottomNavigation(
+                        currentTab = currentTab,
+                        onTabSelected = { currentTab = it }
+                    )
+                }
             },
             containerColor = DasturTheme.PureBlack,
             modifier = Modifier.fillMaxSize()
@@ -87,36 +111,120 @@ fun HomeScreen(viewModel: MainViewModel) {
                     .padding(innerPadding)
             ) {
                 // Safe Drawing Header
-                DasturHeader(
-                    onProfileClick = { currentTab = "settings" }
-                )
+                if (!isFullscreen) {
+                    DasturHeader(
+                        onProfileClick = { currentTab = "settings" }
+                    )
+                }
 
-                // Dynamic view based on the current bottom bar tab selection
-                when (currentTab) {
-                    "home" -> HomeView(
-                        channels = channels,
-                        selectedChannel = selectedChannel,
-                        isLoading = isLoading,
-                        syncError = syncError,
-                        searchQuery = searchQuery,
-                        onSearchChange = { viewModel.setSearchQuery(it) },
-                        onChannelSelect = { viewModel.selectChannel(it) },
-                        onToggleFavorite = { viewModel.toggleFavorite(it) },
-                        favorites = favorites
-                    )
-                    "favorites" -> FavoritesView(
-                        favorites = favorites,
-                        selectedChannel = selectedChannel,
-                        onChannelSelect = {
-                            viewModel.selectChannel(it)
-                            currentTab = "home" // auto focus back to stream player
-                        },
-                        onToggleFavorite = { viewModel.toggleFavorite(it) }
-                    )
-                    "settings" -> SettingsView(
-                        onRefreshList = { viewModel.syncFromNetwork() },
-                        isLoading = isLoading
-                    )
+                // Global Video Player persistent across tabs
+                if (selectedChannel != null) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        VideoPlayer(
+                            url = selectedChannel!!.url,
+                            isFullscreen = isFullscreen,
+                            onFullscreenToggle = { isFullscreen = !isFullscreen },
+                            onClose = { 
+                                viewModel.selectChannel(null)
+                                isFullscreen = false
+                            },
+                            modifier = if (isFullscreen) Modifier.fillMaxSize() else Modifier.fillMaxWidth().aspectRatio(16f / 9f)
+                        )
+                        
+                        if (!isFullscreen) {
+                            // Active stream display match title
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 20.dp, vertical = 12.dp)
+                                    .background(DasturTheme.GlassSurface, shape = RoundedCornerShape(14.dp))
+                                    .border(1.dp, DasturTheme.BorderSoft, RoundedCornerShape(14.dp))
+                                    .padding(16.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "البث المباشر المختار",
+                                        color = Color(0xFF00FF7F),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = selectedChannel!!.name,
+                                        color = Color.White,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+
+                                // Favorite toggle directly on active stream
+                                val isFav = favorites.any { it.url == selectedChannel!!.url }
+                                IconButton(
+                                    onClick = { viewModel.toggleFavorite(selectedChannel!!) },
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = if (isFav) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                        contentDescription = "تفضيل",
+                                        tint = if (isFav) Color(0xFFFFD700) else Color.White
+                                    )
+                                }
+                            }
+                        }
+                    }
+                } else if (currentTab == "home" && !isFullscreen) {
+                    // Promotional Banner only shown if no video playing
+                    DasturPromoBanner()
+                }
+
+                if (!isFullscreen) {
+                    // Dynamic view based on the current bottom bar tab selection
+                    when (currentTab) {
+                        "home" -> HomeView(
+                            channels = channels,
+                            selectedChannel = selectedChannel,
+                            isLoading = isLoading,
+                            syncError = syncError,
+                            searchQuery = searchQuery,
+                            onSearchChange = { viewModel.setSearchQuery(it) },
+                            onChannelSelect = { 
+                                if (!com.example.util.NetworkUtils.isInternetAvailable(context)) {
+                                    coroutineScope.launch { snackbarHostState.showSnackbar("لا يوجد اتصال بالإنترنت. يرجى التحقق من الشبكة", duration = SnackbarDuration.Short) }
+                                } else {
+                                    viewModel.selectChannel(it)
+                                }
+                            },
+                            onToggleFavorite = { viewModel.toggleFavorite(it) },
+                            favorites = favorites
+                        )
+                        "favorites" -> FavoritesView(
+                            favorites = favorites,
+                            selectedChannel = selectedChannel,
+                            onChannelSelect = {
+                                if (!com.example.util.NetworkUtils.isInternetAvailable(context)) {
+                                    coroutineScope.launch { snackbarHostState.showSnackbar("لا يوجد اتصال بالإنترنت. يرجى التحقق من الشبكة", duration = SnackbarDuration.Short) }
+                                } else {
+                                    viewModel.selectChannel(it)
+                                    currentTab = "home"
+                                }
+                            },
+                            onToggleFavorite = { viewModel.toggleFavorite(it) }
+                        )
+                        "settings" -> SettingsView(
+                            onRefreshList = { 
+                                if (!com.example.util.NetworkUtils.isInternetAvailable(context)) {
+                                    coroutineScope.launch { snackbarHostState.showSnackbar("لا يوجد اتصال بالإنترنت. يرجى التحقق من الشبكة", duration = SnackbarDuration.Short) }
+                                } else {
+                                    viewModel.syncFromNetwork()
+                                }
+                            },
+                            isLoading = isLoading
+                        )
+                    }
                 }
             }
         }
@@ -125,6 +233,15 @@ fun HomeScreen(viewModel: MainViewModel) {
 
 @Composable
 fun SplashView() {
+    var splashPhase by remember { mutableStateOf(0) }
+
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(600)
+        splashPhase = 1
+        kotlinx.coroutines.delay(600)
+        splashPhase = 2
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -147,8 +264,8 @@ fun SplashView() {
                 contentAlignment = Alignment.Center
             ) {
                 // Main app logo asset with safe fallback
-                coil.compose.AsyncImage(
-                    model = com.example.R.drawable.dstwr_logo_asset_1781909924808,
+                androidx.compose.foundation.Image(
+                    painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.dstwr_logo_asset_1781909924808),
                     contentDescription = "Logo",
                     modifier = Modifier
                         .fillMaxSize()
@@ -162,7 +279,7 @@ fun SplashView() {
             // App name in beautiful sleek display
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "DSTWR",
+                    text = "DSTWR.TV",
                     color = Color.White,
                     fontSize = 28.sp,
                     fontWeight = FontWeight.Black,
@@ -195,6 +312,19 @@ fun SplashView() {
                 strokeWidth = 3.dp,
                 modifier = Modifier.size(28.dp)
             )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text(
+                text = when (splashPhase) {
+                    0 -> "جاري تهيئة الاتصال بالشبكة..."
+                    1 -> "جاري تحديث قائمة القنوات..."
+                    else -> "يتم الآن التشغيل..."
+                },
+                color = Color.White.copy(alpha = 0.7f),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Normal
+            )
         }
     }
 }
@@ -212,7 +342,7 @@ fun DasturHeader(onProfileClick: () -> Unit) {
         // App Title in beautiful Arabic typeface
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = "DSTWR",
+                text = "DSTWR.TV",
                 color = Color.White,
                 fontSize = 22.sp,
                 fontWeight = FontWeight.Black
@@ -244,6 +374,145 @@ fun DasturHeader(onProfileClick: () -> Unit) {
 }
 
 @Composable
+fun DasturPromoBanner() {
+    // Outstanding Cinematic Promo Banner
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(210.dp)
+            .padding(horizontal = 20.dp, vertical = 8.dp)
+            .clip(RoundedCornerShape(20.dp))
+    ) {
+        // Background artistic gradient representing sports stadium aura
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    androidx.compose.ui.graphics.Brush.linearGradient(
+                        colors = listOf(
+                            Color(0xFF1E0B03),
+                            Color(0xFF07000B),
+                            Color(0xFF040405)
+                        )
+                    )
+                )
+        )
+
+        // Glowing circular ambient light
+        Box(
+            modifier = Modifier
+                .size(240.dp)
+                .align(Alignment.TopEnd)
+                .offset(x = 5.dp, y = (-5).dp)
+                .background(
+                    androidx.compose.ui.graphics.Brush.radialGradient(
+                        colors = listOf(Color(0xFFFF4500).copy(alpha = 0.12f), Color.Transparent)
+                    )
+                )
+        )
+
+        // High quality modern grid visual
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(18.dp),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .background(Color(0xFFFFD100), CircleShape)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "منصة البث الذكي الموحد",
+                        color = Color(0xFFFFD100),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                // Premium Tag
+                Text(
+                    text = "بث عالي الدقة",
+                    color = Color.White.copy(alpha = 0.5f),
+                    fontSize = 8.sp,
+                    fontWeight = FontWeight.Black,
+                    letterSpacing = 1.sp
+                )
+            }
+
+            Column {
+                Text(
+                    text = "بث مباشر مستقر وتلقائي للتفاعل الكلي",
+                    color = Color.White,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Black
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "استمتع بمتابعة المحتوى الرياضي والترفيهي بجودة فائقة وبتأقلم تلقائي يضمن ثبات الاتصال وسلاسة العرض.",
+                    color = Color(0xFF9E9EA5),
+                    fontSize = 11.sp,
+                    lineHeight = 15.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .background(Color(0xFFFF4500), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 14.dp, vertical = 6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PlayArrow,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "اختر باقة أو قناة الآن",
+                        color = Color.White,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                // Active servers badge indicator
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(6.dp)
+                            .background(Color(0xFF00FF7F), CircleShape)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "جودة الخدمة مستمرة ومثالية",
+                        color = Color(0xFF00FF7F),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun HomeView(
     channels: List<Channel>,
     selectedChannel: Channel?,
@@ -256,194 +525,31 @@ fun HomeView(
     favorites: List<Channel>
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
-        // High fidelity video player section
-        if (selectedChannel != null) {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                VideoPlayer(url = selectedChannel.url)
-                
-                // Active stream display match title
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 12.dp)
-                        .background(DasturTheme.GlassSurface, shape = RoundedCornerShape(14.dp))
-                        .border(1.dp, DasturTheme.BorderSoft, RoundedCornerShape(14.dp))
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "البث المباشر المختار",
-                            color = Color(0xFF00FF7F),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = selectedChannel.name,
-                            color = Color.White,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-
-                    // Easy Favorite toggle directly on active stream
-                    val isFav = favorites.any { it.url == selectedChannel.url }
-                    IconButton(
-                        onClick = { onToggleFavorite(selectedChannel) },
-                        modifier = Modifier.size(36.dp)
-                    ) {
-                        Icon(
-                            imageVector = if (isFav) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                            contentDescription = "تفضيل",
-                            tint = if (isFav) Color(0xFFFFD700) else Color.White
-                        )
-                    }
-                }
-            }
-        } else {
-            // Outstanding Cinematic Promo Banner
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(210.dp)
-                    .padding(horizontal = 20.dp, vertical = 8.dp)
-                    .clip(RoundedCornerShape(20.dp))
-            ) {
-                // Background artistic gradient representing sports stadium aura
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            androidx.compose.ui.graphics.Brush.linearGradient(
-                                colors = listOf(
-                                    Color(0xFF1E0B03),
-                                    Color(0xFF07000B),
-                                    Color(0xFF040405)
-                                )
-                            )
-                        )
-                )
-
-                // Glowing circular ambient light
-                Box(
-                    modifier = Modifier
-                        .size(240.dp)
-                        .align(Alignment.TopEnd)
-                        .offset(x = 5.dp, y = (-5).dp)
-                        .background(
-                            androidx.compose.ui.graphics.Brush.radialGradient(
-                                colors = listOf(Color(0xFFFF4500).copy(alpha = 0.12f), Color.Transparent)
-                            )
-                        )
-                )
-
-                // High quality modern grid visual
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(18.dp),
-                    verticalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(8.dp)
-                                    .background(Color(0xFFFFD100), CircleShape)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "منصة البث الذكي الموحد",
-                                color = Color(0xFFFFD100),
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-
-                        // Premium Tag
-                        Text(
-                            text = "بث عالي الدقة",
-                            color = Color.White.copy(alpha = 0.5f),
-                            fontSize = 8.sp,
-                            fontWeight = FontWeight.Black,
-                            letterSpacing = 1.sp
-                        )
-                    }
-
-                    Column {
-                        Text(
-                            text = "بث مباشر مستقر وتلقائي للتفاعل الكلي",
-                            color = Color.White,
-                            fontSize = 17.sp,
-                            fontWeight = FontWeight.Black
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "استمتع بمتابعة المحتوى الرياضي والترفيهي بجودة فائقة وبتأقلم تلقائي يضمن ثبات الاتصال وسلاسة العرض.",
-                            color = Color(0xFF9E9EA5),
-                            fontSize = 11.sp,
-                            lineHeight = 15.sp,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .background(Color(0xFFFF4500), RoundedCornerShape(8.dp))
-                                .padding(horizontal = 14.dp, vertical = 6.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.PlayArrow,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(14.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "اختر باقة أو قناة الآن",
-                                color = Color.White,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-
-                        // Active servers badge indicator
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(6.dp)
-                                    .background(Color(0xFF00FF7F), CircleShape)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "جودة الخدمة مستمرة ومثالية",
-                                color = Color(0xFF00FF7F),
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                }
-            }
-        }
 
         // Live Dynamic Filtering Bar
         DasturSearchBar(searchQuery = searchQuery, onSearchChange = onSearchChange)
+
+        var showTip by remember { mutableStateOf(true) }
+        if (favorites.isEmpty() && showTip && !isLoading && channels.isNotEmpty()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 6.dp)
+                    .background(DasturTheme.GlassSurface, RoundedCornerShape(10.dp))
+                    .border(1.dp, DasturTheme.BorderSoft, RoundedCornerShape(10.dp))
+                    .padding(12.dp)
+                    .clickable { showTip = false },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Default.FavoriteBorder, contentDescription = null, tint = DasturTheme.AccentOrange, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(10.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("نصيحة لتجربة أفضل", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text("أضف قنواتك للمفضلة للوصول إليها بشكل أسرع دائماً", color = DasturTheme.TextMuted, fontSize = 10.sp)
+                }
+                Icon(Icons.Default.Close, contentDescription = null, tint = DasturTheme.TextMuted, modifier = Modifier.size(16.dp))
+            }
+        }
 
         if (isLoading && channels.isEmpty()) {
             Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -876,9 +982,9 @@ fun SettingsView(onRefreshList: () -> Unit, isLoading: Boolean) {
                         .padding(4.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    coil.compose.AsyncImage(
-                        model = com.example.R.drawable.dstwr_logo_asset_1781909924808,
-                        contentDescription = "Logo",
+                androidx.compose.foundation.Image(
+                    painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.dstwr_logo_asset_1781909924808),
+                    contentDescription = "Logo",
                         modifier = Modifier
                             .fillMaxSize()
                             .clip(CircleShape),
@@ -894,7 +1000,7 @@ fun SettingsView(onRefreshList: () -> Unit, isLoading: Boolean) {
                     fontWeight = FontWeight.Black
                 )
                 Text(
-                    text = "المطور والمؤسس لمنصة DASTUR.TV",
+                    text = "المطور والمؤسس لتطبيق DSTWR.TV",
                     color = DasturTheme.AccentOrange,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold

@@ -123,6 +123,62 @@ class ChannelRepository(private val channelDao: ChannelDao) {
         }
     }
 
+    private val fallbackChannels = listOf(
+        Channel(name = "الجزيرة الإخبارية", url = "https://live-hls-web-aja.getaj.net/AJA/index.m3u8", logo = "", category = "باقة الأخبار والبرامج السياسية"),
+        Channel(name = "العربية الإخبارية", url = "https://alarabiya-f.akamaihd.net/i/alarabiya_1@306260/master.m3u8", logo = "", category = "باقة الأخبار والبرامج السياسية"),
+        Channel(name = "التلفزيون الكويتي", url = "https://media.blulive.me/kuwait/1/index.m3u8", logo = "", category = "باقة القنوات العربية العامة"),
+        Channel(name = "السعودية الأولى", url = "https://webtv-kacnd.sba.net.sa/saudi1/index.m3u8", logo = "", category = "باقة القنوات العربية العامة"),
+        Channel(name = "روتانا سينما", url = "https://rotanacinema.msq.net.sa/rotanacinema/index.m3u8", logo = "", category = "باقة قنوات روتانا"),
+        Channel(name = "سبيستون", url = "https://spacetoon.m3u8.com/stream/index.m3u8", logo = "", category = "باقة قنوات الأطفال والكرتون")
+    )
+
+    private suspend fun fetchFallbackM3u(): List<Channel> = withContext(Dispatchers.IO) {
+        val urls = listOf(
+            "https://iptv-org.github.io/iptv/languages/ara.m3u",
+            "https://iptv-org.github.io/iptv/categories/sports.m3u"
+        )
+        val allChannels = mutableListOf<Channel>()
+        
+        for (url in urls) {
+            try {
+                val request = Request.Builder().url(url).build()
+                client.newCall(request).execute().use { response ->
+                    if (response.isSuccessful) {
+                        val body = response.body?.string() ?: return@use
+                        val lines = body.split("\n")
+                        var currentName = ""
+                        var currentLogo = ""
+                        var currentGroupName = "باقة القنوات العامة"
+                        for (line in lines) {
+                            if (line.startsWith("#EXTINF:")) {
+                                val nameMatch = Regex(",(.*)").find(line)
+                                currentName = nameMatch?.groupValues?.get(1)?.trim() ?: "قناة غير معروفة"
+                                
+                                val logoMatch = Regex("tvg-logo=\"([^\"]+)\"").find(line)
+                                currentLogo = logoMatch?.groupValues?.get(1) ?: ""
+                                
+                                val groupMatch = Regex("group-title=\"([^\"]+)\"").find(line)
+                                currentGroupName = groupMatch?.groupValues?.get(1) ?: "باقة القنوات العامة"
+                            } else if (line.startsWith("http")) {
+                                allChannels.add(
+                                    Channel(
+                                        name = currentName,
+                                        url = line.trim(),
+                                        logo = currentLogo,
+                                        category = currentGroupName
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+        allChannels
+    }
+
     suspend fun syncChannels(): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val request = Request.Builder()
@@ -132,11 +188,11 @@ class ChannelRepository(private val channelDao: ChannelDao) {
 
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
-                    return@withContext Result.failure(Exception("HTTP error ${response.code}"))
+                    throw Exception("HTTP error ${response.code}")
                 }
                 
-                val bodyString = response.body?.string() ?: return@withContext Result.failure(Exception("Empty body"))
-                val decryptedJson = CryptoHelper.decrypt(bodyString.trim()) ?: return@withContext Result.failure(Exception("Decryption error"))
+                val bodyString = response.body?.string() ?: throw Exception("Empty body")
+                val decryptedJson = CryptoHelper.decrypt(bodyString.trim()) ?: throw Exception("Decryption error")
                 val rawList = adapter.fromJson(decryptedJson) ?: emptyList()
 
                 // Execute ultra-strict family filtering and map them to beautiful Arabic packages
@@ -149,12 +205,28 @@ class ChannelRepository(private val channelDao: ChannelDao) {
                         )
                     }
 
-                channelDao.syncChannels(processedList)
-                Result.success(Unit)
+                if (processedList.isNotEmpty()) {
+                    channelDao.syncChannels(processedList)
+                    return@withContext Result.success(Unit)
+                } else {
+                    throw Exception("Empty resulting list")
+                }
             }
         } catch (e: Exception) {
             e.printStackTrace()
-            Result.failure(e)
+            // Check if DB is totally empty, insert fallbacks so user isn't left viewing nothing
+            val currentCount = channelDao.getChannelsCount()
+            if (currentCount == 0) {
+                val fallbackList = fetchFallbackM3u()
+                if (fallbackList.isNotEmpty()) {
+                    channelDao.syncChannels(fallbackList)
+                } else {
+                    channelDao.syncChannels(fallbackChannels)
+                }
+                Result.success(Unit)
+            } else {
+                Result.failure(e)
+            }
         }
     }
 }
