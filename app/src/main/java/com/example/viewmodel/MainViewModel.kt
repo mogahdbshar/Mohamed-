@@ -1,5 +1,6 @@
 package com.example.viewmodel
 
+import android.app.Application
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -9,7 +10,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
-class MainViewModel(private val repository: ChannelRepository) : ViewModel() {
+class MainViewModel(private val app: Application, private val repository: ChannelRepository) : ViewModel() {
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading
@@ -60,14 +61,19 @@ class MainViewModel(private val repository: ChannelRepository) : ViewModel() {
         syncFromNetwork()
     }
 
-    fun syncFromNetwork() {
+    fun syncFromNetwork(customUrl: String? = null, onResult: ((Result<Int>) -> Unit)? = null) {
         viewModelScope.launch {
             _isLoading.value = true
             _syncError.value = null
             
-            val result = repository.syncChannels()
+            val result = repository.syncChannels(app, customUrl)
+            result.onSuccess { loadedCount ->
+                onResult?.invoke(Result.success(loadedCount))
+            }
             result.onFailure { error ->
-                _syncError.value = error.localizedMessage ?: "حدث خطأ غير معروف أثناء تحميل القنوات"
+                val errMsg = error.localizedMessage ?: "حدث خطأ غير معروف أثناء تحميل القنوات"
+                _syncError.value = errMsg
+                onResult?.invoke(Result.failure(Exception(errMsg)))
             }
             
             _isLoading.value = false
@@ -95,11 +101,11 @@ class MainViewModel(private val repository: ChannelRepository) : ViewModel() {
     }
 }
 
-class MainViewModelFactory(private val repository: ChannelRepository) : ViewModelProvider.Factory {
+class MainViewModelFactory(private val app: Application, private val repository: ChannelRepository) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(MainViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return MainViewModel(repository) as T
+            return MainViewModel(app, repository) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

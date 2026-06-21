@@ -6,6 +6,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -18,6 +19,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.res.painterResource
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -286,7 +288,9 @@ fun HomeScreen(viewModel: MainViewModel) {
                             onToggleFavorite = { viewModel.toggleFavorite(it) }
                         )
                         "settings" -> SettingsView(
-                            onRefreshList = { viewModel.syncFromNetwork() },
+                            onRefreshList = { url, onCompleted ->
+                                viewModel.syncFromNetwork(url, onResult = onCompleted)
+                            },
                             isLoading = isLoading,
                             favoritesCount = favorites.size,
                             totalChannelsCount = channels.size
@@ -342,8 +346,8 @@ fun SplashView() {
                     .padding(4.dp),
                 contentAlignment = Alignment.Center
             ) {
-                AsyncImage(
-                    model = com.example.R.drawable.dstwr_logo_asset_1781909924808,
+                Image(
+                    painter = painterResource(id = com.example.R.drawable.dstwr_logo_asset_1781909924808),
                     contentDescription = "Mohammed Al-Dastour Logo",
                     modifier = Modifier
                         .fillMaxSize()
@@ -451,8 +455,8 @@ fun DasturHeader(currentTab: String, onActionClick: () -> Unit) {
                     .padding(2.dp),
                 contentAlignment = Alignment.Center
             ) {
-                AsyncImage(
-                    model = com.example.R.drawable.dstwr_logo_asset_1781909924808,
+                Image(
+                    painter = painterResource(id = com.example.R.drawable.dstwr_logo_asset_1781909924808),
                     contentDescription = "DSTWR TV Logo",
                     modifier = Modifier
                         .fillMaxSize()
@@ -1177,19 +1181,15 @@ fun BouquetsView(
     onSelectBouquet: (String) -> Unit,
     onBackToGrid: () -> Unit
 ) {
-    val bouquetsList = listOf(
-        Pair("باقة قنوات beIN Sports العربية", "bein"),
-        Pair("باقة قنوات OSN الترفيهية", "osn"),
-        Pair("باقة قنوات MBC الكاملة", "mbc"),
-        Pair("باقة أفلام ومسلسلات نتفليكس", "movies"),
-        Pair("باقة قنوات الأطفال والكرتون", "kids"),
-        Pair("باقة الأخبار والبرامج السياسية", "news")
-    )
+    // Dynamically derive all bouquets and packages directly from actual active channels
+    val bouquetsList = remember(channels) {
+        channels.map { it.category }.distinct().filter { it.isNotBlank() }.sorted()
+    }
 
     if (activeBouquetDetail != null) {
         // Detailed Bouquet Item List View
         val bouquetChannels = remember(channels, activeBouquetDetail) {
-            channels.filter { it.category == activeBouquetDetail || it.category.contains(activeBouquetDetail.split(" ").getOrNull(1) ?: "XYZ", ignoreCase = true) }
+            channels.filter { it.category == activeBouquetDetail }
         }
 
         Column(modifier = Modifier.fillMaxSize()) {
@@ -1250,55 +1250,69 @@ fun BouquetsView(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
-                contentPadding = PaddingValues(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 20.dp),
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
-                modifier = Modifier.weight(1f)
-            ) {
-                items(bouquetsList) { (bouquetName, indexId) ->
-                    val gradient = when (indexId) {
-                        "bein" -> Brush.verticalGradient(colors = listOf(Color(0xFF8A1538), Color(0xFF4A0B1D)))
-                        "osn" -> Brush.verticalGradient(colors = listOf(DasturTheme.PrimaryRed, Color(0xFF881337)))
-                        "mbc" -> Brush.verticalGradient(colors = listOf(Color(0xFF1E3A8A), Color(0xFF172554)))
-                        "movies" -> Brush.verticalGradient(colors = listOf(Color(0xFF312E81), Color(0xFF1E1B4B)))
-                        "kids" -> Brush.verticalGradient(colors = listOf(Color(0xFFF59E0B), Color(0xFF92400E)))
-                        else -> Brush.verticalGradient(colors = listOf(Color(0xFF475569), Color(0xFF1E293B)))
+            if (bouquetsList.isEmpty()) {
+                Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CircularProgressIndicator(color = DasturTheme.PrimaryRed)
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text("جاري معالجة وتصنيف الباقات الرياضية والسينمائية...", color = DasturTheme.TextMuted, fontSize = 12.sp)
                     }
+                }
+            } else {
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(2),
+                    contentPadding = PaddingValues(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 20.dp),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    items(bouquetsList) { bouquetName ->
+                        val gradient = when {
+                            bouquetName.contains("beIN", ignoreCase = true) -> Brush.verticalGradient(colors = listOf(Color(0xFF8A1538), Color(0xFF4A0B1D)))
+                            bouquetName.contains("SSC", ignoreCase = true) -> Brush.verticalGradient(colors = listOf(Color(0xFF0F172A), Color(0xFF1E293B)))
+                            bouquetName.contains("OSN", ignoreCase = true) -> Brush.verticalGradient(colors = listOf(DasturTheme.PrimaryRed, Color(0xFF881337)))
+                            bouquetName.contains("MBC", ignoreCase = true) -> Brush.verticalGradient(colors = listOf(Color(0xFF1E3A8A), Color(0xFF172554)))
+                            bouquetName.contains("نتفليكس", ignoreCase = true) || bouquetName.contains("Netflix", ignoreCase = true) -> Brush.verticalGradient(colors = listOf(Color(0xFF312E81), Color(0xFF1E1B4B)))
+                            bouquetName.contains("روتانا", ignoreCase = true) -> Brush.verticalGradient(colors = listOf(Color(0xFF047857), Color(0xFF065F46)))
+                            bouquetName.contains("الأطفال", ignoreCase = true) || bouquetName.contains("kids", ignoreCase = true) -> Brush.verticalGradient(colors = listOf(Color(0xFFF59E0B), Color(0xFF92400E)))
+                            bouquetName.contains("الأخبار", ignoreCase = true) || bouquetName.contains("news", ignoreCase = true) -> Brush.verticalGradient(colors = listOf(Color(0xFF0369A1), Color(0xFF075985)))
+                            bouquetName.contains("المضافة", ignoreCase = true) || bouquetName.contains("المخصصة", ignoreCase = true) -> Brush.verticalGradient(colors = listOf(Color(0xFF4F46E5), Color(0xFF312E81)))
+                            else -> Brush.verticalGradient(colors = listOf(Color(0xFF1F2937), Color(0xFF111827)))
+                        }
 
-                    val channelCount = remember(channels) {
-                        channels.filter { it.category == bouquetName || it.category.contains(indexId, ignoreCase = true) }.size
-                    }
+                        val channelCount = remember(channels, bouquetName) {
+                            channels.filter { it.category == bouquetName }.size
+                        }
 
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(110.dp)
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(gradient)
-                            .clickable { onSelectBouquet(bouquetName) }
-                            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(16.dp))
-                            .padding(14.dp),
-                        contentAlignment = Alignment.BottomStart
-                    ) {
-                        Column {
-                            Box(
-                                modifier = Modifier
-                                    .background(Color.Black.copy(alpha = 0.28f), CircleShape)
-                                    .padding(horizontal = 8.dp, vertical = 2.dp)
-                            ) {
-                                Text("$channelCount قناة", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(110.dp)
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(gradient)
+                                .clickable { onSelectBouquet(bouquetName) }
+                                .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(16.dp))
+                                .padding(14.dp),
+                            contentAlignment = Alignment.BottomStart
+                        ) {
+                            Column {
+                                Box(
+                                    modifier = Modifier
+                                        .background(Color.Black.copy(alpha = 0.28f), CircleShape)
+                                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                                ) {
+                                    Text("$channelCount قناة", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = bouquetName.replace("باقة قنوات ", "").replace("باقة ", ""),
+                                    color = Color.White,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Black,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
                             }
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = bouquetName.replace("باقة قنوات ", ""),
-                                color = Color.White,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Black,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
-                            )
                         }
                     }
                 }
@@ -1387,7 +1401,7 @@ fun FavoritesView(
 
 @Composable
 fun SettingsView(
-    onRefreshList: () -> Unit,
+    onRefreshList: (String, (Result<Int>) -> Unit) -> Unit,
     isLoading: Boolean,
     favoritesCount: Int,
     totalChannelsCount: Int
@@ -1399,7 +1413,15 @@ fun SettingsView(
     var useHardwareAcceleration by remember { mutableStateOf(true) }
     var ambientGlowEnabled by remember { mutableStateOf(true) }
     var forceWidescreen by remember { mutableStateOf(false) }
-    var customM3uUrl by remember { mutableStateOf("https://raw.githubusercontent.com/.../system_config.dat") }
+    
+    // Retrieve persistent custom URL securely, defaulting to empty to protect and hide secret default system URL!
+    val sharedPrefs = remember { context.getSharedPreferences("dastur_prefs", android.content.Context.MODE_PRIVATE) }
+    var customM3uUrl by remember { mutableStateOf(sharedPrefs.getString("custom_m3u_url", "") ?: "") }
+    
+    // State indicators for loading feedback and messages
+    var isSaving by remember { mutableStateOf(false) }
+    var syncStatusMessage by remember { mutableStateOf<String?>(null) }
+    var syncIsSuccess by remember { mutableStateOf<Boolean?>(null) }
 
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         if (activeSubPage != null) {
@@ -1410,7 +1432,11 @@ fun SettingsView(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(
-                    onClick = { activeSubPage = null },
+                    onClick = { 
+                        activeSubPage = null 
+                        syncStatusMessage = null
+                        syncIsSuccess = null
+                    },
                     modifier = Modifier
                         .size(34.dp)
                         .background(DasturTheme.SurfaceDark, CircleShape)
@@ -1453,13 +1479,13 @@ fun SettingsView(
                         Column {
                             Text("رابط ملف القنوات الخاص بك (M3U / M3U8)", color = DasturTheme.TextMain, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             Spacer(modifier = Modifier.height(6.dp))
-                            Text("يمكنك تخصيص مصدر قنوات البث لتضمين قائمتك المخصصة مباشرة في التطبيق.", color = DasturTheme.TextMuted, fontSize = 10.sp)
+                            Text("يمكنك تخصيص مصدر قنوات البث لتضمين قائمتك المخصصة مباشرة في وباقة منفصلة داخل التطبيق.", color = DasturTheme.TextMuted, fontSize = 10.sp)
                             Spacer(modifier = Modifier.height(12.dp))
                             
                             TextField(
                                 value = customM3uUrl,
                                 onValueChange = { customM3uUrl = it },
-                                placeholder = { Text("أدخل رابط m3u هنا...", color = DasturTheme.TextMuted, fontSize = 12.sp) },
+                                placeholder = { Text("أدخل رابط m3u الخاص بك هنا...", color = DasturTheme.TextMuted, fontSize = 12.sp) },
                                 singleLine = true,
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -1472,21 +1498,108 @@ fun SettingsView(
                                     focusedTextColor = Color.White,
                                     unfocusedTextColor = Color.White
                                 ),
-                                shape = RoundedCornerShape(8.dp)
+                                shape = RoundedCornerShape(8.dp),
+                                enabled = !isSaving
                             )
+                            
+                            // State feedback card
+                            if (syncStatusMessage != null) {
+                                Spacer(modifier = Modifier.height(12.dp))
+                                val (bgCol, borderCol, textCol) = when (syncIsSuccess) {
+                                    true -> Triple(Color(0x1F10B981), Color(0xFF10B981), Color(0xFF34D399))
+                                    false -> Triple(Color(0x1FEF4444), Color(0xFFEF4444), Color(0xFFF87171))
+                                    null -> Triple(Color(0x1FF59E0B), Color(0xFFF59E0B), Color(0xFFFBBF24))
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(bgCol)
+                                        .border(1.dp, borderCol, RoundedCornerShape(8.dp))
+                                        .padding(12.dp)
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        if (syncIsSuccess == null) {
+                                            CircularProgressIndicator(
+                                                modifier = Modifier.size(16.dp),
+                                                strokeWidth = 2.dp,
+                                                color = DasturTheme.AccentAmber
+                                            )
+                                        } else {
+                                            Icon(
+                                                imageVector = if (syncIsSuccess == true) Icons.Default.Check else Icons.Default.Warning,
+                                                contentDescription = "حالة",
+                                                tint = textCol,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Text(
+                                            text = syncStatusMessage ?: "",
+                                            color = textCol,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
+                                }
+                            }
                             
                             Spacer(modifier = Modifier.height(20.dp))
                             
-                            Button(
-                                onClick = { 
-                                    activeSubPage = null
-                                    onRefreshList()
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = DasturTheme.PrimaryRed),
+                            Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(8.dp)
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
-                                Text("حفظ وتحديث القنوات والمصدر", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Button(
+                                    onClick = { 
+                                        isSaving = true
+                                        syncIsSuccess = null
+                                        syncStatusMessage = "جاري جلب القنوات والاتصال بمزود الخدمة..."
+                                        onRefreshList(customM3uUrl) { result ->
+                                            isSaving = false
+                                            result.onSuccess { count ->
+                                                syncIsSuccess = true
+                                                syncStatusMessage = "تم جلب القنوات بنجاح! تم مزامنة وتثبيت $count قناة خاصة بك."
+                                            }.onFailure { err ->
+                                                syncIsSuccess = false
+                                                syncStatusMessage = "خطأ: ${err.message}"
+                                            }
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = DasturTheme.PrimaryRed),
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(8.dp),
+                                    enabled = !isSaving
+                                ) {
+                                    Text("حفظ وتحديث المصدر", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+
+                                if (customM3uUrl.isNotBlank()) {
+                                    Button(
+                                        onClick = {
+                                            isSaving = true
+                                            syncIsSuccess = null
+                                            syncStatusMessage = "جاري إعادة تعيين المصادر..."
+                                            customM3uUrl = ""
+                                            onRefreshList("") { result ->
+                                                isSaving = false
+                                                result.onSuccess {
+                                                    syncIsSuccess = true
+                                                    syncStatusMessage = "تم إعادة تعيين مصادر البث وتحديث القنوات العامة بنجاح."
+                                                }.onFailure { err ->
+                                                    syncIsSuccess = false
+                                                    syncStatusMessage = "خطأ: ${err.message}"
+                                                }
+                                            }
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = DasturTheme.SecondaryDark),
+                                        modifier = Modifier.weight(0.8f),
+                                        shape = RoundedCornerShape(8.dp),
+                                        enabled = !isSaving
+                                    ) {
+                                        Text("إستعادة الافتراضي", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                                    }
+                                }
                             }
                         }
                     }
@@ -1633,9 +1746,9 @@ fun SettingsView(
                             .padding(4.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        // Safe Async image load using local beautiful fallback
-                        AsyncImage(
-                            model = com.example.R.drawable.dstwr_logo_asset_1781909924808,
+                        // Safe Image load using stable local resource
+                        Image(
+                            painter = painterResource(id = com.example.R.drawable.dstwr_logo_asset_1781909924808),
                             contentDescription = "Mohammed Al-Dastour Logo",
                             modifier = Modifier
                                 .fillMaxSize()
@@ -1704,7 +1817,20 @@ fun SettingsView(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 4.dp)
-                    .clickable(onClick = onRefreshList),
+                    .clickable {
+                        onRefreshList(customM3uUrl) { result ->
+                            result.onSuccess { count ->
+                                android.widget.Toast.makeText(
+                                    context, 
+                                    if (count > 0) "تمت مزامنة البث بنجاح! تم تحميل $count من قنواتك الخاصة."
+                                    else "تمت مزامنة القنوات الافتراضية بنجاح!", 
+                                    android.widget.Toast.LENGTH_LONG
+                                ).show()
+                            }.onFailure { err ->
+                                android.widget.Toast.makeText(context, "فشل المزامنة: ${err.message}", android.widget.Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    },
                 colors = CardDefaults.cardColors(containerColor = DasturTheme.SurfaceDark),
                 shape = RoundedCornerShape(12.dp),
                 border = BorderStroke(1.dp, DasturTheme.BorderSoft)

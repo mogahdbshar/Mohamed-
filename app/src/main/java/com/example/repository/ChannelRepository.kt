@@ -1,5 +1,6 @@
 package com.example.repository
 
+import android.content.Context
 import com.example.db.ChannelDao
 import com.example.model.Channel
 import com.example.util.CryptoHelper
@@ -196,24 +197,36 @@ class ChannelRepository(private val channelDao: ChannelDao) {
         allChannels
     }
 
-    suspend fun syncChannels(): Result<Unit> = withContext(Dispatchers.IO) {
+    suspend fun syncChannels(context: Context, passedCustomUrl: String? = null): Result<Int> = withContext(Dispatchers.IO) {
         try {
+            val sharedPrefs = context.getSharedPreferences("dastur_prefs", Context.MODE_PRIVATE)
+            
+            // 1. If user explicitly updated the url via UI, save or clear it
+            if (passedCustomUrl != null) {
+                if (passedCustomUrl.trim().isBlank()) {
+                    sharedPrefs.edit().remove("custom_m3u_url").apply()
+                } else {
+                    sharedPrefs.edit().putString("custom_m3u_url", passedCustomUrl.trim()).apply()
+                }
+            }
+            
+            val activeCustomUrl = sharedPrefs.getString("custom_m3u_url", null)
+            
+            // 2. Fetch and decode official system curated list (decrypt default channels)
             val request = Request.Builder()
                 .url("https://raw.githubusercontent.com/mogahdbshar/app-core-assets/refs/heads/main/system_config.dat")
                 .header("User-Agent", "IPTVSmarters/1.0.0")
                 .build()
 
-            client.newCall(request).execute().use { response ->
+            val systemChannels = client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
-                    throw Exception("HTTP error ${response.code}")
+                    throw Exception("System source connection error: ${response.code}")
                 }
-                
-                val bodyString = response.body?.string() ?: throw Exception("Empty body")
-                val decryptedJson = CryptoHelper.decrypt(bodyString.trim()) ?: throw Exception("Decryption error")
+                val bodyString = response.body?.string() ?: throw Exception("System configurations are empty")
+                val decryptedJson = CryptoHelper.decrypt(bodyString.trim()) ?: throw Exception("System configuration decryption failed")
                 val rawList = adapter.fromJson(decryptedJson) ?: emptyList()
-
-                // Execute ultra-strict family filtering and map them to beautiful Arabic packages
-                val processedList = rawList.filter { isFamilyFriendly(it) }
+                
+                rawList.filter { isFamilyFriendly(it) }
                     .map { channel ->
                         val cleanName = channel.name.trim()
                         channel.copy(
@@ -221,17 +234,67 @@ class ChannelRepository(private val channelDao: ChannelDao) {
                             category = determinePackage(cleanName, channel.logo)
                         )
                     }
+            }
 
-                if (processedList.isNotEmpty()) {
-                    channelDao.syncChannels(processedList)
-                    return@withContext Result.success(Unit)
-                } else {
-                    throw Exception("Empty resulting list")
+            // 3. Fetch and parse custom M3U/M3U8 playlist from activeCustomUrl if active
+            val customChannels = mutableListOf<Channel>()
+            if (!activeCustomUrl.isNullOrBlank()) {
+                try {
+                    val customRequest = Request.Builder()
+                        .url(activeCustomUrl)
+                        .header("User-Agent", "IPTVSmarters/1.0.0")
+                        .build()
+                        
+                    client.newCall(customRequest).execute().use { response ->
+                        if (!response.isSuccessful) {
+                            throw Exception("Custom M3U connection error: ${response.code}")
+                        }
+                        val body = response.body?.string() ?: ""
+                        if (body.isNotBlank()) {
+                            val lines = body.split("\n")
+                            var currentName = ""
+                            var currentLogo = ""
+                            for (line in lines) {
+                                val trimmedLine = line.trim()
+                                if (trimmedLine.startsWith("#EXTINF:")) {
+                                    val nameMatch = Regex(",(.*)").find(trimmedLine)
+                                    currentName = nameMatch?.groupValues?.get(1)?.trim() ?: "قناة مخصصة"
+                                    
+                                    val logoMatch = Regex("tvg-logo=\"([^\"]+)\"").find(trimmedLine)
+                                    currentLogo = logoMatch?.groupValues?.get(1) ?: ""
+                                } else if (trimmedLine.startsWith("http")) {
+                                    val ch = Channel(
+                                        name = currentName,
+                                        url = trimmedLine,
+                                        logo = currentLogo,
+                                        category = "باقة القنوات المضافة"
+                                    )
+                                    if (isFamilyFriendly(ch)) {
+                                        customChannels.add(ch)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    // Re-throw so user gets the accurate error message on button click
+                    if (passedCustomUrl != null) {
+                        throw Exception("فشل في قراءة الرابط المخصص: ${e.localizedMessage}")
+                    }
+                    e.printStackTrace()
                 }
+            }
+
+            val mergedList = systemChannels + customChannels
+            if (mergedList.isNotEmpty()) {
+                channelDao.syncChannels(mergedList)
+                Result.success(customChannels.size)
+            } else {
+                throw Exception("لم يتم العثور على أي قنوات صالحة للبث")
             }
         } catch (e: Exception) {
             e.printStackTrace()
-            // Check if DB is totally empty, insert fallbacks so user isn't left viewing nothing
+            // If completely empty DB, load local system fallbacks
             val currentCount = channelDao.getChannelsCount()
             if (currentCount == 0) {
                 val fallbackList = fetchFallbackM3u()
@@ -240,7 +303,7 @@ class ChannelRepository(private val channelDao: ChannelDao) {
                 } else {
                     channelDao.syncChannels(fallbackChannels)
                 }
-                Result.success(Unit)
+                Result.success(0)
             } else {
                 Result.failure(e)
             }

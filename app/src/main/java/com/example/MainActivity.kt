@@ -23,7 +23,7 @@ class MainActivity : ComponentActivity() {
             MyApplicationTheme {
                 val app = application as DestourApplication
                 val viewModel: MainViewModel = viewModel(
-                    factory = MainViewModelFactory(app.repository)
+                    factory = MainViewModelFactory(app, app.repository)
                 )
                 
                 HomeScreen(viewModel = viewModel)
