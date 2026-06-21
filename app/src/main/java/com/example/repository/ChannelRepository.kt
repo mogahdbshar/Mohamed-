@@ -41,17 +41,34 @@ class ChannelRepository(private val channelDao: ChannelDao) {
         return true
     }
 
-    private fun isArabicChannel(name: String): Boolean {
+    private fun isArabicChannel(name: String, logo: String? = null): Boolean {
         if (name.any { it in '\u0600'..'\u06FF' }) return true
         val nameLower = name.lowercase(Locale.ROOT)
-        return nameLower.contains("ar:") || 
-               nameLower.contains("ar|") || 
-               nameLower.contains("ar_") || 
-               nameLower.contains("ar ") || 
-               nameLower.contains("ar-") ||
-               nameLower.contains("arabic") || 
-               nameLower.contains("arab") ||
-               nameLower.contains("ara")
+        val nameUpper = name.uppercase(Locale.ROOT)
+        
+        val logoLower = logo?.lowercase(Locale.ROOT) ?: ""
+        
+        val hasArInLogo = logoLower.contains("/ar/") || 
+                          logoLower.contains("/arabic/") || 
+                          logoLower.contains("/arab/") || 
+                          logoLower.contains("_ar.") || 
+                          logoLower.contains("-ar.") || 
+                          logoLower.contains("/ar_") ||
+                          logoLower.endsWith("ar.png") ||
+                          logoLower.endsWith("ar_logo.png")
+
+        val hasArInName = nameUpper.startsWith("AR") || 
+                          nameUpper.startsWith("Ar") || 
+                          nameLower.contains("ar:") || 
+                          nameLower.contains("ar|") || 
+                          nameLower.contains("ar_") || 
+                          nameLower.contains("ar ") || 
+                          nameLower.contains("ar-") ||
+                          nameLower.contains("arabic") || 
+                          nameLower.contains("arab") ||
+                          nameLower.contains("ara")
+
+        return hasArInName || hasArInLogo
     }
 
     private fun isFrenchChannel(name: String): Boolean {
@@ -65,7 +82,7 @@ class ChannelRepository(private val channelDao: ChannelDao) {
                (nameLower.contains("fr") && !nameLower.contains("ar"))
     }
 
-    private fun determinePackage(name: String): String {
+    private fun determinePackage(name: String, logo: String?): String {
         val nameUpper = name.uppercase(Locale.ROOT)
         val nameLower = name.lowercase(Locale.ROOT)
         
@@ -74,7 +91,7 @@ class ChannelRepository(private val channelDao: ChannelDao) {
             nameUpper.contains("SSC") -> {
                 if (isFrenchChannel(name)) {
                     "باقة القنوات العالمية"
-                } else if (isArabicChannel(name) || nameUpper.contains("AR") || nameUpper.contains("ARA") || !nameUpper.contains("FR")) {
+                } else if (isArabicChannel(name, logo) || nameUpper.contains("AR") || nameUpper.contains("ARA") || !nameUpper.contains("FR")) {
                     "باقة قنوات SSC الرياضية"
                 } else {
                     "باقة القنوات العالمية"
@@ -83,7 +100,7 @@ class ChannelRepository(private val channelDao: ChannelDao) {
             nameUpper.contains("BEIN") && (nameUpper.contains("SPORTS") || nameUpper.contains("SP") || nameUpper.contains("SPORT")) -> {
                 if (isFrenchChannel(name)) {
                     "باقة القنوات العالمية"
-                } else if (isArabicChannel(name) || nameUpper.contains("AR") || nameUpper.contains("ARA") || !nameUpper.contains("FR")) {
+                } else if (isArabicChannel(name, logo) || nameUpper.contains("AR") || nameUpper.contains("ARA") || !nameUpper.contains("FR")) {
                     "باقة قنوات beIN Sports العربية"
                 } else {
                     "باقة القنوات العالمية"
@@ -107,7 +124,7 @@ class ChannelRepository(private val channelDao: ChannelDao) {
             nameLower.contains("national") || nameLower.contains("nat geo") || nameLower.contains("وثائق") || nameLower.contains("doc") -> "باقة القنوات الوثائقية"
             
             // Generic Arabic Channels
-            isArabicChannel(name) -> "باقة القنوات العربية العامة"
+            isArabicChannel(name, logo) -> "باقة القنوات العربية العامة"
             
             // PPV Box / Events
             nameUpper.contains("PPV") || nameUpper.contains("BOXING") || nameUpper.contains("EVENT") -> "باقة الأحداث الرياضية والبوكسينج"
@@ -201,7 +218,7 @@ class ChannelRepository(private val channelDao: ChannelDao) {
                         val cleanName = channel.name.trim()
                         channel.copy(
                             name = cleanName,
-                            category = determinePackage(cleanName)
+                            category = determinePackage(cleanName, channel.logo)
                         )
                     }
 

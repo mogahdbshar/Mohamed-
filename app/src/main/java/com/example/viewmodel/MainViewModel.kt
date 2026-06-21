@@ -25,10 +25,22 @@ class MainViewModel(private val repository: ChannelRepository) : ViewModel() {
 
     // Read reactive streams from Room Database to allow instant zero-internet launches
     val allChannels: StateFlow<List<Channel>> = repository.allChannels
+        .map { list ->
+            list.sortedWith(compareByDescending<Channel> { 
+                val nameUpper = it.name.uppercase()
+                nameUpper.startsWith("AR") || it.name.any { char -> char in '\u0600'..'\u06FF' }
+            }.thenBy { it.name })
+        }
         .flowOn(Dispatchers.IO)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val favoriteChannels: StateFlow<List<Channel>> = repository.favoriteChannels
+        .map { list ->
+            list.sortedWith(compareByDescending<Channel> { 
+                val nameUpper = it.name.uppercase()
+                nameUpper.startsWith("AR") || it.name.any { char -> char in '\u0600'..'\u06FF' }
+            }.thenBy { it.name })
+        }
         .flowOn(Dispatchers.IO)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 

@@ -303,17 +303,19 @@ fun VideoPlayer(
     }
 
     Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .aspectRatio(16f / 9f)
-            .background(Color.Black)
-            .clip(RoundedCornerShape(12.dp))
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null
-            ) {
-                showControls = !showControls
-            },
+        modifier = if (isFullscreen) {
+            modifier
+                .background(Color.Black)
+        } else {
+            modifier
+                .background(Color.Black)
+                .clip(RoundedCornerShape(12.dp))
+        }.clickable(
+            interactionSource = remember { MutableInteractionSource() },
+            indication = null
+        ) {
+            showControls = !showControls
+        },
         contentAlignment = Alignment.Center
     ) {
         if (exoPlayer != null) {
