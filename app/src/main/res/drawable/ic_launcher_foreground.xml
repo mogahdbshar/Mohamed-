@@ -1,8 +1,63 @@
 <?xml version="1.0" encoding="utf-8"?>
-<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item
-        android:width="72dp"
-        android:height="72dp"
-        android:drawable="@drawable/dstwr_logo_asset_1781909924808"
-        android:gravity="center" />
-</layer-list>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Inner thin rounded border (Safe Zone Frame) -->
+    <path android:pathData="M 36,20 
+                            h 36 
+                            a 16,16 0 0 1 16,16 
+                            v 36 
+                            a 16,16 0 0 1 -16,16 
+                            h -36 
+                            a 16,16 0 0 1 -16,-16 
+                            v -36 
+                            a 16,16 0 0 1 16,-16 z"
+          android:strokeColor="#20FFFFFF" 
+          android:strokeWidth="1.2"/>
+
+    <!-- Letter 'D' -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="
+            M41,28 
+            h10 
+            c12,0 16,5 16,14 
+            c0,9 -4,14 -16,14 
+            h-10 
+            z 
+            M46.5,33.5 
+            v17 
+            h4.5 
+            c7,0 9.5,-3 9.5,-8.5 
+            c0,-5.5 -2.5,-8.5 -9.5,-8.5 
+            z" />
+
+    <!-- Gradient Line -->
+    <path android:pathData="M 27.25,61.5 h 53.5 a 1.25,1.25 0 0 1 0,2.5 h -53.5 a 1.25,1.25 0 0 1 0,-2.5 z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="26"
+                android:startY="62.75"
+                android:endX="82"
+                android:endY="62.75"
+                android:type="linear">
+                <item android:color="#F59E0B" android:offset="0.0"/>
+                <item android:color="#B45309" android:offset="1.0"/>
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Letter 'T' -->
+    <path android:fillColor="#BFFFFFFF"
+          android:pathData="M40.5,68.5 h10 v2.5 h-3.5 v8.5 h-3 v-8.5 h-3.5 z" />
+
+    <!-- Letter 'V' -->
+    <path android:fillColor="#BFFFFFFF"
+          android:pathData="M55.5,68.5 L 58.5,68.5 L 62,76.5 L 65.5,68.5 L 68.5,68.5 L 63.7,79.5 L 60.3,79.5 Z" />
+
+</vector>

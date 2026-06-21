@@ -20,13 +20,19 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.res.painterResource
+import android.graphics.drawable.BitmapDrawable
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.painter.BitmapPainter
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -73,6 +79,32 @@ val NEWS_ITEMS = listOf(
     NewsItem(4, "الريال يستعد لمواجهة مصيرية لحسم اللقب المحلي الليلة", "Sky News", "منذ 3 ساعات", "رياضة"),
     NewsItem(5, "إطلاق باقة أفلام جديدة بجودة UHD حصرياً لمشتركي الفئة الفضية والذهبية", "DSTWR Cinema", "منذ 5 ساعات", "ترفيه")
 )
+
+@Composable
+fun rememberSafeLogoPainter(): Painter? {
+    val context = LocalContext.current
+    return remember(context) {
+        try {
+            val drawable = context.resources.getDrawable(com.example.R.drawable.img_app_icon_1782010376813, context.theme)
+            if (drawable is BitmapDrawable) {
+                BitmapPainter(drawable.bitmap.asImageBitmap())
+            } else {
+                null
+            }
+        } catch (e1: Throwable) {
+            try {
+                val drawable = context.resources.getDrawable(com.example.R.drawable.dstwr_logo_asset_1781909924808, context.theme)
+                if (drawable is BitmapDrawable) {
+                    BitmapPainter(drawable.bitmap.asImageBitmap())
+                } else {
+                    null
+                }
+            } catch (e2: Throwable) {
+                null
+            }
+        }
+    }
+}
 
 @Composable
 fun HomeScreen(viewModel: MainViewModel) {
@@ -140,7 +172,7 @@ fun HomeScreen(viewModel: MainViewModel) {
                 modifier = Modifier
                     .fillMaxSize()
                     .background(DasturTheme.PureBlack)
-                    .padding(innerPadding)
+                    .padding(if (isFullscreen) PaddingValues(0.dp) else innerPadding)
             ) {
                 // Header (Not shown in Fullscreen mode)
                 if (!isFullscreen) {
@@ -155,7 +187,14 @@ fun HomeScreen(viewModel: MainViewModel) {
 
                 // Global Interactive Live Player component
                 if (selectedChannel != null) {
-                    Column(modifier = Modifier.fillMaxWidth()) {
+                    androidx.activity.compose.BackHandler(enabled = isFullscreen || selectedChannel != null) {
+                        if (isFullscreen) {
+                            isFullscreen = false
+                        } else {
+                            viewModel.selectChannel(null)
+                        }
+                    }
+                    Column(modifier = if (isFullscreen) Modifier.fillMaxSize() else Modifier.fillMaxWidth()) {
                         VideoPlayer(
                             url = selectedChannel!!.url,
                             isFullscreen = isFullscreen,
@@ -337,24 +376,7 @@ fun SplashView() {
             modifier = Modifier.padding(horizontal = 24.dp)
         ) {
             // Elegant brand indicator logo container
-            Box(
-                modifier = Modifier
-                    .size(100.dp)
-                    .clip(CircleShape)
-                    .background(DasturTheme.SurfaceDark)
-                    .border(1.5.dp, DasturTheme.PrimaryRed, CircleShape)
-                    .padding(4.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Image(
-                    painter = painterResource(id = com.example.R.drawable.dstwr_logo_asset_1781909924808),
-                    contentDescription = "Mohammed Al-Dastour Logo",
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clip(CircleShape),
-                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
-                )
-            }
+            DstwrLogo(size = 92.dp)
 
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -437,6 +459,30 @@ fun SplashView() {
 }
 
 @Composable
+fun DstwrLogo(size: androidx.compose.ui.unit.Dp, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .size(size)
+            .clip(RoundedCornerShape(size * 0.233f)),
+        contentAlignment = Alignment.Center
+    ) {
+        Image(
+            painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.ic_launcher_background),
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = androidx.compose.ui.layout.ContentScale.Crop
+        )
+        // Scale the foreground slightly so it has a vibrant, full presence but still matches the icon perfectly
+        Image(
+            painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.ic_launcher_foreground),
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize().scale(1.3f), // Scale up inside the clip safely
+            contentScale = androidx.compose.ui.layout.ContentScale.Fit
+        )
+    }
+}
+
+@Composable
 fun DasturHeader(currentTab: String, onActionClick: () -> Unit) {
     Row(
         modifier = Modifier
@@ -447,23 +493,7 @@ fun DasturHeader(currentTab: String, onActionClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier
-                    .size(32.dp)
-                    .background(DasturTheme.SecondaryDark, CircleShape)
-                    .border(1.dp, DasturTheme.PrimaryRed, CircleShape)
-                    .padding(2.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Image(
-                    painter = painterResource(id = com.example.R.drawable.dstwr_logo_asset_1781909924808),
-                    contentDescription = "DSTWR TV Logo",
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clip(CircleShape),
-                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
-                )
-            }
+            DstwrLogo(size = 32.dp)
             Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = "DSTWR",
@@ -1183,7 +1213,38 @@ fun BouquetsView(
 ) {
     // Dynamically derive all bouquets and packages directly from actual active channels
     val bouquetsList = remember(channels) {
-        channels.map { it.category }.distinct().filter { it.isNotBlank() }.sorted()
+        val priorityList = listOf(
+            "باقة قنوات beIN Sports العربية",
+            "باقة قنوات SSC الرياضية",
+            "باقة قنوات أبوظبي الرياضية",
+            "باقة قنوات الكأس الرياضية",
+            "باقة VIP شاهد",
+            "باقة قنوات OSN الترفيهية",
+            "باقة قنوات MBC الكاملة",
+            "باقة قنوات روتانا",
+            "باقة أفلام ومسلسلات نتفليكس",
+            "باقة الأخبار والبرامج السياسية",
+            "باقة القنوات الوثائقية",
+            "باقة قنوات الأطفال والكرتون",
+            "باقة القنوات العربية العامة",
+            "باقة الأحداث الرياضية والبوكسينج",
+            "باقة القنوات المضافة",
+            "باقة القنوات العالمية",
+            "باقة القنوات العالمية الأخرى"
+        )
+        channels.map { it.category }
+            .distinct()
+            .filter { it.isNotBlank() }
+            .sortedWith { a, b ->
+                val indexA = priorityList.indexOf(a)
+                val indexB = priorityList.indexOf(b)
+                when {
+                    indexA != -1 && indexB != -1 -> indexA.compareTo(indexB)
+                    indexA != -1 -> -1
+                    indexB != -1 -> 1
+                    else -> a.compareTo(b)
+                }
+            }
     }
 
     if (activeBouquetDetail != null) {
@@ -1738,24 +1799,7 @@ fun SettingsView(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(72.dp)
-                            .background(DasturTheme.PrimaryRed.copy(alpha = 0.15f), CircleShape)
-                            .border(1.5.dp, DasturTheme.PrimaryRed, CircleShape)
-                            .padding(4.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        // Safe Image load using stable local resource
-                        Image(
-                            painter = painterResource(id = com.example.R.drawable.dstwr_logo_asset_1781909924808),
-                            contentDescription = "Mohammed Al-Dastour Logo",
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .clip(CircleShape),
-                            contentScale = androidx.compose.ui.layout.ContentScale.Crop
-                        )
-                    }
+                    DstwrLogo(size = 72.dp)
 
                     Spacer(modifier = Modifier.height(10.dp))
 

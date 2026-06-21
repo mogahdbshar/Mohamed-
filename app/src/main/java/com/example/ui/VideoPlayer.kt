@@ -2,6 +2,7 @@ package com.example.ui
 
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.widget.FrameLayout
+import android.os.Build
 import androidx.annotation.OptIn
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
@@ -13,6 +14,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -40,6 +42,17 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import android.content.pm.ActivityInfo
 import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
+
+fun Context.findActivity(): Activity? {
+    var context = this
+    while (context is ContextWrapper) {
+        if (context is Activity) return context
+        context = context.baseContext
+    }
+    return null
+}
 
 @Composable
 fun CustomPauseIcon(tint: Color = Color.White) {
@@ -129,6 +142,11 @@ fun VideoPlayer(
     // Use remember to keep the same player instance across recompositions
     val exoPlayer = remember(context) {
         try {
+            val fallbackContext = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                context.createAttributionContext("media")
+            } else {
+                context
+            }
             val httpDataSourceFactory = DefaultHttpDataSource.Factory()
                 .setUserAgent("IPTVSmarters/1.0.0")
                 .setAllowCrossProtocolRedirects(true)
@@ -137,7 +155,7 @@ fun VideoPlayer(
                     "User-Agent" to "IPTVSmarters/1.0.0"
                 ))
             
-            val mediaSourceFactory = DefaultMediaSourceFactory(context.applicationContext)
+            val mediaSourceFactory = DefaultMediaSourceFactory(fallbackContext)
                 .setDataSourceFactory(httpDataSourceFactory)
 
             // Smart Load Control to prevent network drain and bloat while keeping stream ultra-live
@@ -150,7 +168,7 @@ fun VideoPlayer(
                 )
                 .build()
 
-            ExoPlayer.Builder(context.applicationContext)
+            ExoPlayer.Builder(fallbackContext)
                 .setMediaSourceFactory(mediaSourceFactory)
                 .setLoadControl(loadControl)
                 .build().apply {
@@ -159,7 +177,12 @@ fun VideoPlayer(
         } catch (e: Exception) {
             e.printStackTrace()
             try {
-                ExoPlayer.Builder(context.applicationContext).build()
+                val fallbackContextCatch = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    context.createAttributionContext("media")
+                } else {
+                    context
+                }
+                ExoPlayer.Builder(fallbackContextCatch).build()
             } catch (inner: Exception) {
                 inner.printStackTrace()
                 null
@@ -294,11 +317,17 @@ fun VideoPlayer(
 
     // Handle Orientation manually
     LaunchedEffect(isFullscreen) {
-        val activity = context as? Activity ?: return@LaunchedEffect
+        val activity = context.findActivity() ?: return@LaunchedEffect
+        val window = activity.window
+        val insetsController = androidx.core.view.WindowCompat.getInsetsController(window, window.decorView)
+        
         if (isFullscreen) {
             activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            insetsController.hide(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+            insetsController.systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         } else {
             activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            insetsController.show(androidx.core.view.WindowInsetsCompat.Type.systemBars())
         }
     }
 
@@ -397,20 +426,6 @@ fun VideoPlayer(
                                 .padding(horizontal = 6.dp, vertical = 2.dp),
                             style = MaterialTheme.typography.labelSmall
                         )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        IconButton(
-                            onClick = onClose,
-                            modifier = Modifier
-                                .size(28.dp)
-                                .background(Color.White.copy(alpha = 0.15f), CircleShape)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = "Close",
-                                tint = Color.White,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
                     }
                 }
 
@@ -509,7 +524,7 @@ fun VideoPlayer(
                                 .background(Color.White.copy(alpha = 0.1f), CircleShape)
                         ) {
                             Icon(
-                                imageVector = if (isFullscreen) Icons.Default.Close else Icons.Default.List, // Assuming no Fullscreen icon in Default
+                                imageVector = if (isFullscreen) Icons.Default.Close else Icons.AutoMirrored.Filled.List, // Assuming no Fullscreen icon in Default
                                 contentDescription = "Fullscreen",
                                 tint = Color.White,
                                 modifier = Modifier.size(16.dp)
@@ -593,6 +608,12 @@ fun VideoPlayer(
                     }
                 }
             }
+        }
+    }
+    
+    DisposableEffect(exoPlayer) {
+        onDispose {
+            exoPlayer?.release()
         }
     }
 }
