@@ -12,13 +12,17 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.util.Locale
+import java.util.concurrent.TimeUnit
 
 class ChannelRepository(private val channelDao: ChannelDao) {
 
     val allChannels: Flow<List<Channel>> = channelDao.getAllChannelsFlow()
     val favoriteChannels: Flow<List<Channel>> = channelDao.getFavoritesFlow()
 
-    private val client = OkHttpClient()
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .build()
     private val moshi = Moshi.Builder().build()
     private val listType = Types.newParameterizedType(List::class.java, Channel::class.java)
     private val adapter = moshi.adapter<List<Channel>>(listType)
@@ -199,7 +203,7 @@ class ChannelRepository(private val channelDao: ChannelDao) {
 
     suspend fun syncChannels(context: Context, passedCustomUrl: String? = null): Result<Int> = withContext(Dispatchers.IO) {
         try {
-            val sharedPrefs = context.getSharedPreferences("dastur_prefs", Context.MODE_PRIVATE)
+            val sharedPrefs = context.getSharedPreferences("dstwr_prefs", Context.MODE_PRIVATE)
             
             // 1. If user explicitly updated the url via UI, save or clear it
             if (passedCustomUrl != null) {
@@ -254,6 +258,7 @@ class ChannelRepository(private val channelDao: ChannelDao) {
                             val lines = body.split("\n")
                             var currentName = ""
                             var currentLogo = ""
+                            var currentGroup = "باقة القنوات المضافة"
                             for (line in lines) {
                                 val trimmedLine = line.trim()
                                 if (trimmedLine.startsWith("#EXTINF:")) {
@@ -262,12 +267,15 @@ class ChannelRepository(private val channelDao: ChannelDao) {
                                     
                                     val logoMatch = Regex("tvg-logo=\"([^\"]+)\"").find(trimmedLine)
                                     currentLogo = logoMatch?.groupValues?.get(1) ?: ""
+
+                                    val groupMatch = Regex("group-title=\"([^\"]+)\"").find(trimmedLine)
+                                    currentGroup = groupMatch?.groupValues?.get(1) ?: "باقة القنوات المضافة"
                                 } else if (trimmedLine.startsWith("http")) {
                                     val ch = Channel(
                                         name = currentName,
                                         url = trimmedLine,
                                         logo = currentLogo,
-                                        category = "باقة القنوات المضافة"
+                                        category = currentGroup
                                     )
                                     if (isFamilyFriendly(ch)) {
                                         customChannels.add(ch)
@@ -285,27 +293,61 @@ class ChannelRepository(private val channelDao: ChannelDao) {
                 }
             }
 
-            val mergedList = systemChannels + customChannels
+            // 4. Source Filter Layer (Multi Source IPTV System)
+            val sourceMode = sharedPrefs.getString("source_mode", "merged") ?: "merged"
+            val showDevPackage = sharedPrefs.getBoolean("show_dev_package", true)
+            
+            val finalSystemChannels = if ((sourceMode == "merged" || sourceMode == "dev_only") && showDevPackage) {
+                systemChannels
+            } else {
+                emptyList()
+            }
+            
+            val finalCustomChannels = if (sourceMode == "merged" || sourceMode == "user_only") {
+                customChannels
+            } else {
+                emptyList()
+            }
+
+            val mergedList = (finalSystemChannels + finalCustomChannels).distinctBy { it.url }
+            
+            channelDao.syncChannels(mergedList)
+            
             if (mergedList.isNotEmpty()) {
-                channelDao.syncChannels(mergedList)
                 Result.success(customChannels.size)
             } else {
-                throw Exception("لم يتم العثور على أي قنوات صالحة للبث")
+                Result.failure(Exception("لا توجد قنوات صالحة للبث في الوضع الحالي"))
             }
         } catch (e: Exception) {
             e.printStackTrace()
+            
+            val arabicErrorMsg = when {
+                e is java.net.SocketTimeoutException -> "عذراً، السيرفر لا يستجيب في الوقت الحالي. تحقق من سرعة الإنترنت."
+                e is java.net.UnknownHostException -> "لا يوجد اتصال بالإنترنت، تأكد من اتصالك بالشبكة."
+                e.message?.contains("401") == true || e.message?.contains("403") == true -> "انتهت صلاحية اشتراكك، أو البيانات المدخلة غير صحيحة."
+                e.message?.contains("404") == true -> "الرابط المدخل غير موجود أو السيرفر متوقف."
+                e.message?.contains("decryption failed") == true -> "فشل في قراءة بيانات النظام الأساسية."
+                else -> e.localizedMessage ?: "حدث خطأ غير معروف."
+            }
+            
             // If completely empty DB, load local system fallbacks
             val currentCount = channelDao.getChannelsCount()
             if (currentCount == 0) {
+                val sharedPrefs = context.getSharedPreferences("dstwr_prefs", Context.MODE_PRIVATE)
+                val sourceMode = sharedPrefs.getString("source_mode", "merged") ?: "merged"
+                val showDevPackage = sharedPrefs.getBoolean("show_dev_package", true)
+                
                 val fallbackList = fetchFallbackM3u()
-                if (fallbackList.isNotEmpty()) {
-                    channelDao.syncChannels(fallbackList)
-                } else {
+                val finalFallbackList = if ((sourceMode == "merged" || sourceMode == "dev_only") && showDevPackage) fallbackList else emptyList()
+                
+                if (finalFallbackList.isNotEmpty()) {
+                    channelDao.syncChannels(finalFallbackList)
+                } else if ((sourceMode == "merged" || sourceMode == "dev_only") && showDevPackage) {
                     channelDao.syncChannels(fallbackChannels)
                 }
-                Result.success(0)
+                Result.failure(Exception("$arabicErrorMsg (جاري عرض القنوات المحفوظة مسبقاً)"))
             } else {
-                Result.failure(e)
+                Result.failure(Exception("$arabicErrorMsg (القنوات المحفوظة لا تزال متوفرة)"))
             }
         }
     }

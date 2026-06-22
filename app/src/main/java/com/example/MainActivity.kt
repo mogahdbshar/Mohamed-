@@ -21,7 +21,7 @@ class MainActivity : ComponentActivity() {
         
         setContent {
             MyApplicationTheme {
-                val app = application as DestourApplication
+                val app = application as DstwrApplication
                 val viewModel: MainViewModel = viewModel(
                     factory = MainViewModelFactory(app, app.repository)
                 )

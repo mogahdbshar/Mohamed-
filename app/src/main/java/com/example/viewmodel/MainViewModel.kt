@@ -27,7 +27,7 @@ class MainViewModel(private val app: Application, private val repository: Channe
     // Read reactive streams from Room Database to allow instant zero-internet launches
     val allChannels: StateFlow<List<Channel>> = repository.allChannels
         .map { list ->
-            list.sortedWith(compareByDescending<Channel> { 
+            list.sortedWith(compareBy<Channel> { it.category }.thenByDescending {
                 val nameUpper = it.name.uppercase()
                 nameUpper.startsWith("AR") || it.name.any { char -> char in '\u0600'..'\u06FF' }
             }.thenBy { it.name })
@@ -37,7 +37,7 @@ class MainViewModel(private val app: Application, private val repository: Channe
 
     val favoriteChannels: StateFlow<List<Channel>> = repository.favoriteChannels
         .map { list ->
-            list.sortedWith(compareByDescending<Channel> { 
+            list.sortedWith(compareBy<Channel> { it.category }.thenByDescending {
                 val nameUpper = it.name.uppercase()
                 nameUpper.startsWith("AR") || it.name.any { char -> char in '\u0600'..'\u06FF' }
             }.thenBy { it.name })

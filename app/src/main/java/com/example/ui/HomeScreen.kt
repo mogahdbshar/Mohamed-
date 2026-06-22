@@ -13,6 +13,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -26,9 +28,18 @@ import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material.icons.automirrored.filled.*
+import androidx.compose.material.icons.automirrored.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,6 +48,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -53,15 +66,51 @@ import kotlinx.coroutines.launch
 // Colors mapped exactly from user specifications
 // ═══════════════════════════════════════════════
 object DasturTheme {
-    val PureBlack = Color(0xFF050511)      // Colors.bg
-    val SurfaceDark = Color(0xFF12121D)    // Colors.card
-    val SecondaryDark = Color(0xFF1C1C28)  // Colors.secondary
-    val BorderSoft = Color(0xFF2A2A3D)     // Colors.border
-    val PrimaryRed = Color(0xFFE11D48)     // Colors.primary
-    val AccentAmber = Color(0xFFF59E0B)    // Colors.accent
-    val AccentGold = Color(0xFFD4AF37)     // Colors.gold
-    val TextMain = Color(0xFFF8F9FA)       // Colors.text
-    val TextMuted = Color(0xFF8D93A5)      // Colors.textMuted
+    var PureBlack by mutableStateOf(Color(0xFF07070A))      // Deep luxurious background
+    var SurfaceDark by mutableStateOf(Color(0x17FFFFFF))    // Glass card background (approx 9% white)
+    var SecondaryDark by mutableStateOf(Color(0x0CFFFFFF))  // Glass secondary container (approx 5% white)
+    var BorderSoft by mutableStateOf(Color(0x26FFFFFF))     // Soft glass reflection border (15% white)
+    var PrimaryRed by mutableStateOf(Color(0xFFE50914))     // Cinematic premium red
+    var AccentAmber by mutableStateOf(Color(0xFFD4AF37))    // Luxury Gold
+    val TextMain = Color(0xFFFAFAFA)                        // Crisp White
+    val TextMuted = Color(0xFF8E93A3)                       // Elegant muted text
+}
+
+fun applyThemeStyle(themeId: String) {
+    when (themeId) {
+        "crimson_neon" -> {
+            DasturTheme.PureBlack = Color(0xFF060609)
+            DasturTheme.PrimaryRed = Color(0xFFE50914)      // Cinematic premium red
+            DasturTheme.AccentAmber = Color(0xFFFFB703)     // Luxury Gold
+            DasturTheme.SurfaceDark = Color(0x17FFFFFF)     // Glass card background
+            DasturTheme.SecondaryDark = Color(0x0CFFFFFF)   // Glass secondary container
+            DasturTheme.BorderSoft = Color(0x26FFFFFF)      // Soft glass reflection border
+        }
+        "calm_slate" -> {
+            DasturTheme.PureBlack = Color(0xFF090D13)       // Comfort midnight slate grey
+            DasturTheme.PrimaryRed = Color(0xFF00B4D8)      // Sky Blue / Ocean active
+            DasturTheme.AccentAmber = Color(0xFF90E0EF)     // Cyan / Eye comfort tint
+            DasturTheme.SurfaceDark = Color(0x1BFFFFFF)     // High-translucency slate glass
+            DasturTheme.SecondaryDark = Color(0x10FFFFFF)
+            DasturTheme.BorderSoft = Color(0x2EFFFFFF)
+        }
+        "royal_gold" -> {
+            DasturTheme.PureBlack = Color(0xFF040610)       // Deep luxurious Islamic royal indigo
+            DasturTheme.PrimaryRed = Color(0xFFFFD54F)      // Luxury Royal Gold
+            DasturTheme.AccentAmber = Color(0xFF00E676)     // Vibrant emerald green accent
+            DasturTheme.SurfaceDark = Color(0x1EFFFFFF)     // Rich glass background
+            DasturTheme.SecondaryDark = Color(0x11FFFFFF)
+            DasturTheme.BorderSoft = Color(0x32FFFFFF)
+        }
+        "active_emerald" -> {
+            DasturTheme.PureBlack = Color(0xFF030804)       // Cyber active sports dark green
+            DasturTheme.PrimaryRed = Color(0xFF00E676)      // Vivid neon emerald
+            DasturTheme.AccentAmber = Color(0xFFAEEA00)     // Energetic neon lime
+            DasturTheme.SurfaceDark = Color(0x16FFFFFF)
+            DasturTheme.SecondaryDark = Color(0x0BFFFFFF)
+            DasturTheme.BorderSoft = Color(0x25FFFFFF)
+        }
+    }
 }
 
 data class NewsItem(
@@ -106,9 +155,43 @@ fun rememberSafeLogoPainter(): Painter? {
     }
 }
 
+fun getChannelAmbientColor(channel: com.example.model.Channel?): Color {
+    if (channel == null) return Color(0xFF673AB7) // Indigo-violet base
+    val cat = channel.category.lowercase()
+    val name = channel.name.lowercase()
+    
+    return when {
+        cat.contains("news") || cat.contains("أخبار") || cat.contains("اخبار") || name.contains("الجزيرة") || name.contains("العربية") || name.contains("news") -> Color(0xFF03A9F4) // Cyan / news blue
+        cat.contains("sport") || cat.contains("رياضة") || cat.contains("الرياضية") || name.contains("bein") || name.contains("الكأس") -> Color(0xFF00E676) // Sports green
+        cat.contains("islam") || cat.contains("قرأن") || cat.contains("قرآن") || cat.contains("قران") || cat.contains("دعوة") || name.contains("المجد") || name.contains("سنة") -> Color(0xFFFFD54F) // Islamic gold
+        cat.contains("kids") || cat.contains("أطفال") || cat.contains("atfal") || name.contains("طيور") || name.contains("براعم") -> Color(0xFFF06292) // Playful pink
+        cat.contains("cinema") || cat.contains("أفلام") || cat.contains("سينما") || cat.contains("دراما") || name.contains("mbc") || name.contains("روتانا") -> Color(0xFFE50914) // Film red
+        else -> {
+            val hash = channel.name.hashCode()
+            val colors = listOf(
+                Color(0xFFE50914), // Red
+                Color(0xFF9C27B0), // Purple
+                Color(0xFF03A9F4), // Light Blue
+                Color(0xFF00E676), // Green
+                Color(0xFFFFB703), // Orange/Amber
+                Color(0xFFE040FB)  // Magenta
+            )
+            colors[Math.abs(hash) % colors.size]
+        }
+    }
+}
+
 @Composable
 fun HomeScreen(viewModel: MainViewModel) {
     val context = LocalContext.current
+    val sharedPrefs = remember { context.getSharedPreferences("dstwr_prefs", android.content.Context.MODE_PRIVATE) }
+    var ambientGlowEnabled by remember { mutableStateOf(sharedPrefs.getBoolean("ambient_glow_enabled", true)) }
+    var activeThemeId by remember { mutableStateOf(sharedPrefs.getString("selected_theme_id", "crimson_neon") ?: "crimson_neon") }
+
+    LaunchedEffect(activeThemeId) {
+        applyThemeStyle(activeThemeId)
+    }
+
     var currentTab by remember { mutableStateOf("home") }
     var showSplash by remember { mutableStateOf(true) }
     var isFullscreen by remember { mutableStateOf(false) }
@@ -126,7 +209,7 @@ fun HomeScreen(viewModel: MainViewModel) {
     var activeBouquetDetail by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
-        delay(3200) // 3.2 seconds matching React splash phase timeouts
+        delay(2400) // 2.4 seconds for faster entry
         showSplash = false
         if (!com.example.util.NetworkUtils.isInternetAvailable(context)) {
             snackbarHostState.showSnackbar(
@@ -139,41 +222,63 @@ fun HomeScreen(viewModel: MainViewModel) {
     if (showSplash) {
         SplashView()
     } else {
-        Scaffold(
-            snackbarHost = {
-                SnackbarHost(hostState = snackbarHostState) { data ->
-                    Snackbar(
-                        modifier = Modifier
-                            .padding(16.dp)
-                            .border(1.dp, DasturTheme.BorderSoft, RoundedCornerShape(14.dp)),
-                        containerColor = DasturTheme.SurfaceDark,
-                        contentColor = DasturTheme.TextMain,
-                        shape = RoundedCornerShape(14.dp)
-                    ) {
-                        Text(text = data.visuals.message, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                    }
-                }
-            },
-            bottomBar = {
-                if (!isFullscreen) {
-                    DasturBottomNavigation(
-                        currentTab = currentTab,
-                        onTabSelected = { 
-                            currentTab = it 
-                            activeBouquetDetail = null // reset detail view as user navigates tabs
-                        }
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    brush = androidx.compose.ui.graphics.Brush.radialGradient(
+                        colors = listOf(
+                            Color(0xFF0F0B1E),
+                            DasturTheme.PureBlack
+                        ),
+                        radius = 2200f
                     )
-                }
-            },
-            containerColor = DasturTheme.PureBlack,
-            modifier = Modifier.fillMaxSize()
-        ) { innerPadding ->
-            Column(
+                )
+        ) {
+            val infiniteTransition = rememberInfiniteTransition(label = "ambient_glow")
+            val pulseAlpha by infiniteTransition.animateFloat(
+                initialValue = if (selectedChannel != null) 0.16f else 0.05f,
+                targetValue = if (selectedChannel != null) 0.32f else 0.10f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(durationMillis = 5000, easing = FastOutSlowInEasing),
+                    repeatMode = RepeatMode.Reverse
+                ),
+                label = "pulse"
+            )
+
+            val currentGlowColor = if (ambientGlowEnabled) {
+                getChannelAmbientColor(selectedChannel)
+            } else {
+                Color(0xFF321A4B) // Subtle static fallback
+            }
+
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(DasturTheme.PureBlack)
-                    .padding(if (isFullscreen) PaddingValues(0.dp) else innerPadding)
-            ) {
+                    .background(
+                        brush = androidx.compose.ui.graphics.Brush.radialGradient(
+                            colors = listOf(
+                                if (ambientGlowEnabled) currentGlowColor.copy(alpha = pulseAlpha) else Color(0x1F321A4B),
+                                if (ambientGlowEnabled && selectedChannel != null) currentGlowColor.copy(alpha = pulseAlpha * 0.3f) else Color(0x0602010A),
+                                Color.Transparent
+                            ),
+                            radius = 2800f
+                        )
+                    )
+            )
+
+            Scaffold(
+                containerColor = Color.Transparent,
+                modifier = Modifier.fillMaxSize()
+            ) { innerPadding ->
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(
+                            top = if (isFullscreen) 0.dp else innerPadding.calculateTopPadding(),
+                            bottom = 0.dp
+                        )
+                ) {
                 // Header (Not shown in Fullscreen mode)
                 if (!isFullscreen) {
                     DasturHeader(
@@ -195,16 +300,39 @@ fun HomeScreen(viewModel: MainViewModel) {
                         }
                     }
                     Column(modifier = if (isFullscreen) Modifier.fillMaxSize() else Modifier.fillMaxWidth()) {
-                        VideoPlayer(
-                            url = selectedChannel!!.url,
-                            isFullscreen = isFullscreen,
-                            onFullscreenToggle = { isFullscreen = !isFullscreen },
-                            onClose = {
-                                viewModel.selectChannel(null)
-                                isFullscreen = false
+                        val playerGlowColor = getChannelAmbientColor(selectedChannel)
+
+                        Box(
+                            modifier = if (isFullscreen) {
+                                Modifier.fillMaxSize()
+                            } else {
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 6.dp)
+                                    .background(
+                                        brush = Brush.radialGradient(
+                                            colors = listOf(
+                                                if (ambientGlowEnabled) playerGlowColor.copy(alpha = 0.28f) else Color.Transparent,
+                                                Color.Transparent
+                                            ),
+                                            radius = 500f
+                                        ),
+                                        shape = RoundedCornerShape(20.dp)
+                                    )
                             },
-                            modifier = if (isFullscreen) Modifier.fillMaxSize() else Modifier.fillMaxWidth().aspectRatio(16f / 9f)
-                        )
+                            contentAlignment = Alignment.Center
+                        ) {
+                            VideoPlayer(
+                                url = selectedChannel!!.url,
+                                isFullscreen = isFullscreen,
+                                onFullscreenToggle = { isFullscreen = !isFullscreen },
+                                onClose = {
+                                    viewModel.selectChannel(null)
+                                    isFullscreen = false
+                                },
+                                modifier = if (isFullscreen) Modifier.fillMaxSize() else Modifier.fillMaxWidth().aspectRatio(16f / 9f)
+                            )
+                        }
 
                         if (!isFullscreen) {
                             // Active playback metadata display
@@ -253,7 +381,7 @@ fun HomeScreen(viewModel: MainViewModel) {
                                         modifier = Modifier.size(36.dp)
                                     ) {
                                         Icon(
-                                            imageVector = if (isFav) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                            imageVector = if (isFav) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
                                             contentDescription = "Тفضيل",
                                             tint = if (isFav) DasturTheme.AccentAmber else DasturTheme.TextMuted,
                                             modifier = Modifier.size(18.dp)
@@ -265,7 +393,7 @@ fun HomeScreen(viewModel: MainViewModel) {
                                         modifier = Modifier.size(36.dp)
                                     ) {
                                         Icon(
-                                            imageVector = Icons.Default.Close,
+                                            imageVector = Icons.Rounded.Close,
                                             contentDescription = "إغلاق",
                                             tint = DasturTheme.TextMuted,
                                             modifier = Modifier.size(18.dp)
@@ -332,8 +460,142 @@ fun HomeScreen(viewModel: MainViewModel) {
                             },
                             isLoading = isLoading,
                             favoritesCount = favorites.size,
-                            totalChannelsCount = channels.size
+                            totalChannelsCount = channels.size,
+                            ambientGlowEnabled = ambientGlowEnabled,
+                            onAmbientGlowChange = { enabled ->
+                                ambientGlowEnabled = enabled
+                                sharedPrefs.edit().putBoolean("ambient_glow_enabled", enabled).apply()
+                            },
+                            activeThemeId = activeThemeId,
+                            onThemeChange = { theme ->
+                                activeThemeId = theme
+                                sharedPrefs.edit().putString("selected_theme_id", theme).apply()
+                            },
+                            onShowNotification = { msg ->
+                                coroutineScope.launch {
+                                    snackbarHostState.showSnackbar(msg)
+                                }
+                            }
                         )
+                    }
+                }
+            }
+        }
+
+        if (!isFullscreen) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                ) {
+                    DasturBottomNavigation(
+                        currentTab = currentTab,
+                        onTabSelected = { 
+                            currentTab = it 
+                            activeBouquetDetail = null // reset detail view as user navigates tabs
+                        }
+                    )
+                }
+            }
+
+            // ═══════════════════════════════════════════════════════════════════════════════════════
+            // Custom Glassmorphic Top Notification Banner (Dynamic Theme and Status Compatibility)
+            // ═══════════════════════════════════════════════════════════════════════════════════════
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+                    .padding(top = 16.dp)
+                    .align(Alignment.TopCenter)
+            ) {
+                SnackbarHost(hostState = snackbarHostState) { data ->
+                    val isFail = data.visuals.message.contains("فشل") || 
+                                 data.visuals.message.contains("خطأ") || 
+                                 data.visuals.message.contains("error") || 
+                                 data.visuals.message.contains("مشكلة")
+                    
+                    val isWarn = data.visuals.message.contains("لا يوجد") || 
+                                 data.visuals.message.contains("تعذر") || 
+                                 data.visuals.message.contains("تأكد")
+                                 
+                    val isSuccess = data.visuals.message.contains("بنجاح") || 
+                                    data.visuals.message.contains("تم")
+                    
+                    val accentCol = when {
+                        isFail -> Color(0xFFEF4444) // Bright Warning Red
+                        isWarn -> DasturTheme.PrimaryRed // Theme-Active Accent (Primary Red, Sky Blue, Neon Emerald, Gold)
+                        isSuccess -> Color(0xFF10B981) // Action Success Emerald Green
+                        else -> DasturTheme.AccentAmber // Secondary Warm Amber Accent Code
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .padding(horizontal = 20.dp, vertical = 6.dp)
+                            .fillMaxWidth()
+                            .background(
+                                brush = Brush.verticalGradient(
+                                    colors = listOf(
+                                        Color(0xFA07070A), // Extremely crisp opaque glassmorphic slate background for contrast
+                                        Color(0xEE12121A)
+                                    )
+                                ),
+                                shape = RoundedCornerShape(16.dp)
+                            )
+                            .border(
+                                width = 1.2.dp,
+                                color = accentCol.copy(alpha = 0.5f),
+                                shape = RoundedCornerShape(16.dp)
+                            )
+                            .padding(horizontal = 16.dp, vertical = 14.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            // Premium Dual-Circle Glowing Logo Icon Shape
+                            Box(
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .background(accentCol.copy(alpha = 0.12f), CircleShape)
+                                    .border(1.dp, accentCol.copy(alpha = 0.35f), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = when {
+                                        isFail -> Icons.Rounded.Close
+                                        isWarn -> Icons.Rounded.Warning
+                                        isSuccess -> Icons.Rounded.Check
+                                        else -> Icons.Rounded.Info
+                                    },
+                                    contentDescription = "Notification Icon",
+                                    tint = accentCol,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = when {
+                                        isFail -> "تنبيه خطأ النظام"
+                                        isWarn -> "إشعار وتنبيه"
+                                        isSuccess -> "تمت العملية بنجاح"
+                                        else -> "تنبيه من DSTWR TV"
+                                    },
+                                    color = accentCol,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Black
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = data.visuals.message,
+                                    color = Color.White,
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    lineHeight = 16.sp
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -357,7 +619,15 @@ fun SplashView() {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(DasturTheme.PureBlack),
+            .background(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        Color(0xFF1B0F2A), // Subtle violet/purple glow in center
+                        DasturTheme.PureBlack // Fade to pure black
+                    ),
+                    radius = 2000f
+                )
+            ),
         contentAlignment = Alignment.Center
     ) {
         // High fidelity background elements
@@ -386,21 +656,23 @@ fun SplashView() {
                 exit = fadeOut()
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = "DSTWR",
-                            color = DasturTheme.TextMain,
-                            fontSize = 26.sp,
-                            fontWeight = FontWeight.Black,
-                            letterSpacing = 1.sp
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "TV",
-                            color = DasturTheme.PrimaryRed,
-                            fontSize = 26.sp,
-                            fontWeight = FontWeight.Black
-                        )
+                    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "DSTWR",
+                                color = DasturTheme.TextMain,
+                                fontSize = 26.sp,
+                                fontWeight = FontWeight.Black,
+                                letterSpacing = 1.sp
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "TV",
+                                color = DasturTheme.PrimaryRed,
+                                fontSize = 26.sp,
+                                fontWeight = FontWeight.Black
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(6.dp))
@@ -487,39 +759,62 @@ fun DasturHeader(currentTab: String, onActionClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(DasturTheme.PureBlack)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
+            .padding(horizontal = 16.dp, vertical = 10.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            DstwrLogo(size = 32.dp)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = "DSTWR",
-                color = DasturTheme.TextMain,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Black
-            )
-            Text(
-                text = "TV",
-                color = DasturTheme.PrimaryRed,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Black
-            )
+        // Logo & name wrapped in a compact glass capsule that dynamically fits content
+        Surface(
+            color = Color(0x3B12121E), // Subtle premium translucent base
+            shape = RoundedCornerShape(18.dp),
+            border = BorderStroke(1.dp, Brush.linearGradient(listOf(Color(0x3DFFFFFF), Color(0x06FFFFFF))))
+        ) {
+            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                Row(
+                    modifier = Modifier
+                        .background(Brush.horizontalGradient(listOf(Color(0x15FFFFFF), Color(0x02FFFFFF))))
+                        .padding(horizontal = 14.dp, vertical = 7.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    DstwrLogo(size = 28.dp)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "DSTWR",
+                        color = DasturTheme.TextMain,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Black,
+                        letterSpacing = 0.5.sp
+                    )
+                    Text(
+                        text = "TV",
+                        color = DasturTheme.PrimaryRed,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Black,
+                        letterSpacing = 0.5.sp
+                    )
+                }
+            }
         }
 
+        // Settings button wrapped in a separate matching glass circle
         IconButton(
             onClick = onActionClick,
             modifier = Modifier
-                .size(34.dp)
-                .background(DasturTheme.SurfaceDark, CircleShape)
-                .border(1.dp, DasturTheme.BorderSoft, CircleShape)
+                .size(38.dp)
+                .clip(CircleShape)
+                .background(Color(0x3B12121E))
+                .border(
+                    BorderStroke(
+                        1.dp,
+                        Brush.linearGradient(listOf(Color(0x3DFFFFFF), Color(0x06FFFFFF)))
+                    ),
+                    CircleShape
+                )
         ) {
             Icon(
-                imageVector = Icons.Default.Settings,
+                imageVector = Icons.Rounded.Settings,
                 contentDescription = "الإعدادات",
-                tint = DasturTheme.TextMuted,
+                tint = Color.White,
                 modifier = Modifier.size(16.dp)
             )
         }
@@ -541,9 +836,17 @@ fun HomeView(
 ) {
     var showPrompt by remember { mutableStateOf(true) }
 
+    // Group and map local channels to show dynamically based on available categories
+    val dynamicGroups = remember(channels) {
+        channels.groupBy { it.category }
+            .filterKeys { it.isNotBlank() }
+            .map { (category, list) -> Pair(category, list) }
+            .sortedByDescending { it.second.size }
+    }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 24.dp)
+        contentPadding = PaddingValues(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 110.dp)
     ) {
         // Featured Cinema Banner (Hero display)
         item {
@@ -640,7 +943,7 @@ fun HomeView(
                             shape = RoundedCornerShape(8.dp),
                             modifier = Modifier.height(32.dp)
                         ) {
-                            Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(12.dp))
+                            Icon(Icons.Rounded.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(12.dp))
                             Spacer(modifier = Modifier.width(4.dp))
                             Text("شاهد البث الرياضي", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                         }
@@ -675,13 +978,13 @@ fun HomeView(
                         .clickable { showPrompt = false },
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Default.Star, contentDescription = null, tint = DasturTheme.AccentAmber, modifier = Modifier.size(14.dp))
+                    Icon(Icons.Rounded.Star, contentDescription = null, tint = DasturTheme.AccentAmber, modifier = Modifier.size(14.dp))
                     Spacer(modifier = Modifier.width(10.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text("الخدمة البريميوم المتكاملة", color = DasturTheme.TextMain, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         Text("استمتع بأفلامك بجودة ultra وفي أي وقت بدون تقطيع", color = DasturTheme.TextMuted, fontSize = 10.sp)
                     }
-                    Icon(Icons.Default.Close, contentDescription = null, tint = DasturTheme.TextMuted, modifier = Modifier.size(14.dp))
+                    Icon(Icons.Rounded.Close, contentDescription = null, tint = DasturTheme.TextMuted, modifier = Modifier.size(14.dp))
                 }
             }
         }
@@ -693,68 +996,58 @@ fun HomeView(
                 }
             }
         } else {
-            // Group and map local channels to show the 3 key Home Bouquets (beIN Sports, OSN Network, MBC Group)
-            val bouquetsOnHome = listOf(
-                Pair("باقة قنوات beIN Sports العربية", "bein"),
-                Pair("باقة قنوات OSN الترفيهية", "osn"),
-                Pair("باقة قنوات MBC الكاملة", "mbc")
-            )
-
-            bouquetsOnHome.forEach { (bouquetName, bouquetId) ->
-                val groupChannels = channels.filter { it.category.contains(bouquetId, ignoreCase = true) || it.category == bouquetName }
-                if (groupChannels.isNotEmpty()) {
-                    item {
-                        Column(modifier = Modifier.padding(vertical = 12.dp)) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Box(
-                                        modifier = Modifier
-                                            .width(3.dp)
-                                            .height(14.dp)
-                                            .background(DasturTheme.PrimaryRed, RoundedCornerShape(1.dp))
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = bouquetName,
-                                        color = DasturTheme.TextMain,
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-
-                                Text(
-                                    text = "الكل",
-                                    color = DasturTheme.PrimaryRed,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
+            dynamicGroups.forEach { (bouquetName, groupChannels) ->
+                item {
+                    Column(modifier = Modifier.padding(vertical = 12.dp)) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
                                     modifier = Modifier
-                                        .clip(RoundedCornerShape(4.dp))
-                                        .clickable { onSwitchTab("bouquets", bouquetName) }
-                                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                                        .width(3.dp)
+                                        .height(14.dp)
+                                        .background(DasturTheme.PrimaryRed, RoundedCornerShape(1.dp))
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = bouquetName.replace("باقة قنوات ", "").replace("باقة ", ""),
+                                    color = DasturTheme.TextMain,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold
                                 )
                             }
 
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "الكل",
+                                color = DasturTheme.PrimaryRed,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .clickable { onSwitchTab("bouquets", bouquetName) }
+                                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                            )
+                        }
 
-                            LazyRow(
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                items(groupChannels.take(5)) { channel ->
-                                    val isFav = favorites.any { it.url == channel.url }
-                                    ChannelCardCompact(
-                                        channel = channel,
-                                        isFavorite = isFav,
-                                        isActive = selectedChannel?.url == channel.url,
-                                        onSelect = { onChannelSelect(channel) },
-                                        onToggleFavorite = { onToggleFavorite(channel) }
-                                    )
-                                }
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            items(groupChannels.take(10)) { channel ->
+                                val isFav = favorites.any { it.url == channel.url }
+                                ChannelCardCompact(
+                                    channel = channel,
+                                    isFavorite = isFav,
+                                    isActive = selectedChannel?.url == channel.url,
+                                    onSelect = { onChannelSelect(channel) },
+                                    onToggleFavorite = { onToggleFavorite(channel) }
+                                )
                             }
                         }
                     }
@@ -769,15 +1062,19 @@ fun DasturSearchBar(searchQuery: String, onSearchChange: (String) -> Unit) {
     TextField(
         value = searchQuery,
         onValueChange = onSearchChange,
-        placeholder = { Text("البحث عن باقات القنوات وسيرفر البث المباشر...", color = DasturTheme.TextMuted, fontSize = 12.sp) },
+        placeholder = { Text("البحث في القنوات والباقات...", color = DasturTheme.TextMuted, fontSize = 12.sp) },
         singleLine = true,
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp)
             .height(50.dp)
-            .border(1.dp, DasturTheme.BorderSoft, RoundedCornerShape(12.dp)),
+            .border(
+                1.dp,
+                Brush.linearGradient(listOf(Color(0x33FFFFFF), Color(0x08FFFFFF))),
+                RoundedCornerShape(16.dp)
+            ),
         colors = TextFieldDefaults.colors(
-            focusedContainerColor = DasturTheme.SurfaceDark,
+            focusedContainerColor = DasturTheme.SecondaryDark,
             unfocusedContainerColor = DasturTheme.SurfaceDark,
             disabledContainerColor = DasturTheme.SurfaceDark,
             focusedIndicatorColor = Color.Transparent,
@@ -785,14 +1082,14 @@ fun DasturSearchBar(searchQuery: String, onSearchChange: (String) -> Unit) {
             focusedTextColor = DasturTheme.TextMain,
             unfocusedTextColor = DasturTheme.TextMain
         ),
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(16.dp),
         leadingIcon = {
-            Icon(Icons.Default.Search, contentDescription = "بحث", tint = DasturTheme.TextMuted, modifier = Modifier.size(16.dp))
+            Icon(Icons.Rounded.Search, contentDescription = "بحث", tint = DasturTheme.PrimaryRed, modifier = Modifier.size(18.dp))
         },
         trailingIcon = {
             if (searchQuery.isNotEmpty()) {
                 IconButton(onClick = { onSearchChange("") }) {
-                    Icon(Icons.Default.Clear, contentDescription = "مسح", tint = DasturTheme.TextMuted, modifier = Modifier.size(14.dp))
+                    Icon(Icons.Rounded.Clear, contentDescription = "مسح", tint = DasturTheme.TextMuted, modifier = Modifier.size(18.dp))
                 }
             }
         }
@@ -811,14 +1108,15 @@ fun ChannelCardCompact(
         modifier = Modifier
             .width(110.dp)
             .height(134.dp)
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(16.dp))
             .background(
-                brush = Brush.verticalGradient(
+                brush = Brush.radialGradient(
                     colors = if (isActive) {
-                        listOf(DasturTheme.SecondaryDark, DasturTheme.SecondaryDark.copy(alpha = 0.85f))
+                        listOf(DasturTheme.PrimaryRed.copy(alpha = 0.2f), DasturTheme.SecondaryDark.copy(alpha = 0.85f))
                     } else {
-                        listOf(Color(0x33FFFFFF).copy(alpha = 0.08f), Color(0x11000000).copy(alpha = 0.45f))
-                    }
+                        listOf(Color(0x22FFFFFF), Color(0x05FFFFFF))
+                    },
+                    radius = 250f
                 )
             )
             .clickable(onClick = onSelect)
@@ -826,9 +1124,9 @@ fun ChannelCardCompact(
                 border = if (isActive) {
                     BorderStroke(1.5.dp, Brush.linearGradient(listOf(DasturTheme.PrimaryRed, DasturTheme.AccentAmber)))
                 } else {
-                    BorderStroke(1.dp, Color(0x1F2A2A3D))
+                    BorderStroke(1.dp, Brush.linearGradient(listOf(Color(0x33FFFFFF), Color(0x05FFFFFF))))
                 },
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(16.dp)
             )
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -836,7 +1134,7 @@ fun ChannelCardCompact(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(84.dp)
-                    .background(Color(0x4007070F)),
+                    .background(Color.Transparent),
                 contentAlignment = Alignment.Center
             ) {
                 // Async logo load
@@ -881,7 +1179,7 @@ fun ChannelCardCompact(
                         .size(24.dp)
                 ) {
                     Icon(
-                        imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        imageVector = if (isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
                         contentDescription = null,
                         tint = if (isFavorite) DasturTheme.AccentAmber else Color.White.copy(alpha = 0.4f),
                         modifier = Modifier.size(12.dp)
@@ -934,13 +1232,13 @@ fun ChannelVerticalRow(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(16.dp))
             .background(
                 brush = Brush.horizontalGradient(
                     colors = if (isActive) {
-                        listOf(DasturTheme.SecondaryDark, DasturTheme.SecondaryDark.copy(alpha = 0.75f))
+                        listOf(DasturTheme.SecondaryDark, DasturTheme.PrimaryRed.copy(alpha = 0.15f))
                     } else {
-                        listOf(Color(0x1FFFFFFF).copy(alpha = 0.05f), Color(0x3012121D).copy(alpha = 0.3f))
+                        listOf(Color(0x22FFFFFF), Color(0x05FFFFFF))
                     }
                 )
             )
@@ -949,11 +1247,11 @@ fun ChannelVerticalRow(
                 border = if (isActive) {
                     BorderStroke(1.2.dp, Brush.linearGradient(listOf(DasturTheme.PrimaryRed, DasturTheme.AccentAmber)))
                 } else {
-                    BorderStroke(1.dp, Color(0x1F2A2A3D))
+                    BorderStroke(1.dp, Brush.linearGradient(listOf(Color(0x33FFFFFF), Color(0x05FFFFFF))))
                 },
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(16.dp)
             )
-            .padding(8.dp)
+            .padding(10.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -963,7 +1261,7 @@ fun ChannelVerticalRow(
             Box(
                 modifier = Modifier
                     .size(54.dp)
-                    .clip(RoundedCornerShape(8.dp))
+                    .clip(RoundedCornerShape(10.dp))
                     .background(Color(0x35000000)),
                 contentAlignment = Alignment.Center
             ) {
@@ -1066,7 +1364,7 @@ fun ChannelVerticalRow(
                     modifier = Modifier.size(36.dp)
                 ) {
                     Icon(
-                        imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        imageVector = if (isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
                         contentDescription = "التفضيل",
                         tint = if (isFavorite) DasturTheme.AccentAmber else Color.White.copy(alpha = 0.35f),
                         modifier = Modifier.size(18.dp)
@@ -1075,7 +1373,7 @@ fun ChannelVerticalRow(
 
                 if (isActive) {
                     Icon(
-                        imageVector = Icons.Default.PlayArrow,
+                        imageVector = Icons.Rounded.PlayArrow,
                         contentDescription = "قيد التشغيل",
                         tint = DasturTheme.PrimaryRed,
                         modifier = Modifier.size(20.dp)
@@ -1097,31 +1395,23 @@ fun ChannelsView(
     onSearchChange: (String) -> Unit
 ) {
     var activeFilterId by remember { mutableStateOf("all") }
-    val filters = listOf(
-        Pair("all", "الكل"),
-        Pair("bein", "beIN"),
-        Pair("osn", "OSN"),
-        Pair("mbc", "MBC"),
-        Pair("movies", "أفلام"),
-        Pair("kids", "أطفال"),
-        Pair("news", "أخبار")
-    )
+    
+    val filters = remember(channels) {
+        val staticFilters = mutableListOf(Pair("all", "الكل"))
+        val dynamicGroups = channels.map { it.category }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .map { Pair(it, it.replace("باقة ", "").replace("قنوات ", "")) }
+        
+        staticFilters.addAll(dynamicGroups)
+        staticFilters
+    }
 
     val currentFiltered = remember(channels, activeFilterId) {
         if (activeFilterId == "all") {
             channels
         } else {
-            channels.filter { ch ->
-                when (activeFilterId) {
-                    "bein" -> ch.name.contains("beIN", ignoreCase = true) || ch.category.contains("beIN", ignoreCase = true)
-                    "osn" -> ch.name.contains("OSN", ignoreCase = true) || ch.category.contains("OSN", ignoreCase = true)
-                    "mbc" -> ch.name.contains("MBC", ignoreCase = true) || ch.category.contains("MBC", ignoreCase = true)
-                    "movies" -> ch.category.contains("أفلام", ignoreCase = true) || ch.category.contains("Movies", ignoreCase = true) || ch.name.contains("Aflam", ignoreCase = true) || ch.name.contains("Cinema", ignoreCase = true)
-                    "kids" -> ch.category.contains("أطفال", ignoreCase = true) || ch.category.contains("kids", ignoreCase = true) || ch.name.contains("Spacetoon", ignoreCase = true)
-                    "news" -> ch.category.contains("أخبار", ignoreCase = true) || ch.category.contains("news", ignoreCase = true) || ch.name.contains("الجزيرة", ignoreCase = true) || ch.name.contains("العربية", ignoreCase = true)
-                    else -> true
-                }
-            }
+            channels.filter { ch -> ch.category == activeFilterId }
         }
     }
 
@@ -1181,7 +1471,7 @@ fun ChannelsView(
             }
         } else {
             LazyColumn(
-                contentPadding = PaddingValues(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 20.dp),
+                contentPadding = PaddingValues(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 110.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
                 modifier = Modifier.weight(1f)
             ) {
@@ -1267,7 +1557,7 @@ fun BouquetsView(
                         .background(DasturTheme.SurfaceDark, CircleShape)
                         .border(1.dp, DasturTheme.BorderSoft, CircleShape)
                 ) {
-                    Icon(Icons.Default.ArrowBack, contentDescription = "رجوع", tint = Color.White, modifier = Modifier.size(16.dp))
+                    Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "رجوع", tint = Color.White, modifier = Modifier.size(16.dp))
                 }
                 Spacer(modifier = Modifier.width(12.dp))
                 Column {
@@ -1284,7 +1574,7 @@ fun BouquetsView(
                 }
             } else {
                 LazyColumn(
-                    contentPadding = PaddingValues(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 20.dp),
+                    contentPadding = PaddingValues(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 110.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                     modifier = Modifier.weight(1f)
                 ) {
@@ -1322,7 +1612,7 @@ fun BouquetsView(
             } else {
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(2),
-                    contentPadding = PaddingValues(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 20.dp),
+                    contentPadding = PaddingValues(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 110.dp),
                     horizontalArrangement = Arrangement.spacedBy(14.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp),
                     modifier = Modifier.weight(1f)
@@ -1417,7 +1707,7 @@ fun FavoritesView(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = Icons.Default.FavoriteBorder,
+                            imageVector = Icons.Rounded.FavoriteBorder,
                             contentDescription = "المفضلة فارغة",
                             tint = DasturTheme.PrimaryRed,
                             modifier = Modifier.size(32.dp)
@@ -1442,7 +1732,7 @@ fun FavoritesView(
             }
         } else {
             LazyColumn(
-                contentPadding = PaddingValues(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 20.dp),
+                contentPadding = PaddingValues(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 110.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
                 modifier = Modifier.weight(1f)
             ) {
@@ -1461,35 +1751,289 @@ fun FavoritesView(
 }
 
 @Composable
+private fun GlassGroup(
+    modifier: Modifier = Modifier,
+    title: String? = null,
+    subtitle: String? = null,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        if (title != null) {
+            Text(
+                text = title,
+                color = DasturTheme.TextMain,
+                fontSize = 12.5.sp,
+                fontWeight = FontWeight.Black,
+                modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)
+            )
+            if (subtitle != null) {
+                Text(
+                    text = subtitle,
+                    color = DasturTheme.TextMuted,
+                    fontSize = 9.5.sp,
+                    lineHeight = 13.sp,
+                    modifier = Modifier.padding(start = 4.dp, bottom = 12.dp)
+                )
+            } else {
+                Spacer(modifier = Modifier.height(6.dp))
+            }
+        }
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            DasturTheme.SurfaceDark,
+                            DasturTheme.SurfaceDark.copy(alpha = 0.6f)
+                        )
+                    ),
+                    shape = RoundedCornerShape(16.dp)
+                )
+                .border(1.2.dp, DasturTheme.BorderSoft, RoundedCornerShape(16.dp))
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            content()
+        }
+    }
+}
+
+@Composable
+private fun PremiumSwitchRow(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    icon: ImageVector? = null,
+    iconColor: Color = DasturTheme.PrimaryRed
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable { onCheckedChange(!checked) }
+            .padding(vertical = 10.dp, horizontal = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            if (icon != null) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .background(iconColor.copy(alpha = 0.12f), CircleShape)
+                        .border(1.dp, iconColor.copy(alpha = 0.25f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = iconColor,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+            Column {
+                Text(
+                    text = title,
+                    color = DasturTheme.TextMain,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = subtitle,
+                    color = DasturTheme.TextMuted,
+                    fontSize = 9.5.sp,
+                    lineHeight = 13.sp
+                )
+            }
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = Color.White,
+                checkedTrackColor = DasturTheme.PrimaryRed,
+                uncheckedThumbColor = DasturTheme.TextMuted,
+                uncheckedTrackColor = DasturTheme.SecondaryDark,
+                uncheckedBorderColor = DasturTheme.BorderSoft
+            )
+        )
+    }
+}
+
+@Composable
+private fun PremiumRadioButtonRow(
+    title: String,
+    subtitle: String,
+    selected: Boolean,
+    onSelect: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable { onSelect() }
+            .padding(vertical = 10.dp, horizontal = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                color = if (selected) Color.White else DasturTheme.TextMain,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = subtitle,
+                color = DasturTheme.TextMuted,
+                fontSize = 9.5.sp,
+                lineHeight = 13.sp
+            )
+        }
+        RadioButton(
+            selected = selected,
+            onClick = onSelect,
+            colors = RadioButtonDefaults.colors(
+                selectedColor = DasturTheme.PrimaryRed,
+                unselectedColor = DasturTheme.TextMuted
+            )
+        )
+    }
+}
+
+@Composable
+private fun PremiumMenuOptionCard(
+    title: String,
+    subtitle: String,
+    icon: ImageVector,
+    iconColor: Color,
+    onClick: () -> Unit,
+    trailingContent: @Composable (() -> Unit)? = null
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .clickable { onClick() },
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.2.dp, DasturTheme.BorderSoft)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            DasturTheme.SurfaceDark,
+                            DasturTheme.SurfaceDark.copy(alpha = 0.6f)
+                        )
+                    )
+                )
+                .padding(14.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .background(iconColor.copy(alpha = 0.12f), CircleShape)
+                            .border(1.dp, iconColor.copy(alpha = 0.25f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = null,
+                            tint = iconColor,
+                            modifier = Modifier.size(17.dp)
+                        )
+                    }
+                    Column {
+                        Text(
+                            text = title,
+                            color = DasturTheme.TextMain,
+                            fontSize = 12.5.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = subtitle,
+                            color = DasturTheme.TextMuted,
+                            fontSize = 9.5.sp,
+                            lineHeight = 13.sp
+                        )
+                    }
+                }
+                if (trailingContent != null) {
+                    trailingContent()
+                } else {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowLeft,
+                        contentDescription = null,
+                        tint = DasturTheme.TextMuted,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun SettingsView(
     onRefreshList: (String, (Result<Int>) -> Unit) -> Unit,
     isLoading: Boolean,
     favoritesCount: Int,
-    totalChannelsCount: Int
+    totalChannelsCount: Int,
+    ambientGlowEnabled: Boolean,
+    onAmbientGlowChange: (Boolean) -> Unit,
+    activeThemeId: String,
+    onThemeChange: (String) -> Unit,
+    onShowNotification: (String) -> Unit
 ) {
     val context = LocalContext.current
     var activeSubPage by remember { mutableStateOf<String?>(null) }
     
     // Custom settings options state
-    var useHardwareAcceleration by remember { mutableStateOf(true) }
-    var ambientGlowEnabled by remember { mutableStateOf(true) }
-    var forceWidescreen by remember { mutableStateOf(false) }
+    var useHardwareAcceleration by remember { @Suppress("MutableStateOfWithMutableStateFlow") mutableStateOf(true) }
+    var forceWidescreen by remember { @Suppress("MutableStateOfWithMutableStateFlow") mutableStateOf(false) }
     
-    // Retrieve persistent custom URL securely, defaulting to empty to protect and hide secret default system URL!
-    val sharedPrefs = remember { context.getSharedPreferences("dastur_prefs", android.content.Context.MODE_PRIVATE) }
+    // Retrieve persistent custom URL securely, defaulting to empty
+    val sharedPrefs = remember { context.getSharedPreferences("dstwr_prefs", android.content.Context.MODE_PRIVATE) }
     var customM3uUrl by remember { mutableStateOf(sharedPrefs.getString("custom_m3u_url", "") ?: "") }
     
+    // Multi Source state
+    var sourceMode by remember { mutableStateOf(sharedPrefs.getString("source_mode", "merged") ?: "merged") }
+    var showDevPackage by remember { mutableStateOf(sharedPrefs.getBoolean("show_dev_package", true)) }
+
     // State indicators for loading feedback and messages
     var isSaving by remember { mutableStateOf(false) }
     var syncStatusMessage by remember { mutableStateOf<String?>(null) }
     var syncIsSuccess by remember { mutableStateOf<Boolean?>(null) }
 
-    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp).imePadding().verticalScroll(rememberScrollState())) {
         if (activeSubPage != null) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 12.dp),
+                    .padding(vertical = 16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(
@@ -1499,21 +2043,22 @@ fun SettingsView(
                         syncIsSuccess = null
                     },
                     modifier = Modifier
-                        .size(34.dp)
+                        .size(38.dp)
                         .background(DasturTheme.SurfaceDark, CircleShape)
                         .border(1.dp, DasturTheme.BorderSoft, CircleShape)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.ArrowBack,
+                        imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
                         contentDescription = "رجوع",
                         tint = Color.White,
                         modifier = Modifier.size(16.dp)
                     )
                 }
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(14.dp))
                 Text(
                     text = when(activeSubPage) {
                         "server" -> "إعدادات السيرفر والمصدر"
+                        "sources" -> "إدارة مصادر القنوات"
                         "quality" -> "خيارات العرض والسينما"
                         "privacy" -> "سياسة الخصوصية والأمان"
                         "about" -> "عن تطبيق DSTWR TV"
@@ -1521,7 +2066,7 @@ fun SettingsView(
                     },
                     color = DasturTheme.TextMain,
                     fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Black
                 )
             }
 
@@ -1529,54 +2074,126 @@ fun SettingsView(
 
             when(activeSubPage) {
                 "server" -> {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(DasturTheme.SurfaceDark)
-                            .border(1.dp, DasturTheme.BorderSoft, RoundedCornerShape(16.dp))
-                            .padding(16.dp)
-                    ) {
-                        Column {
-                            Text("رابط ملف القنوات الخاص بك (M3U / M3U8)", color = DasturTheme.TextMain, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Text("يمكنك تخصيص مصدر قنوات البث لتضمين قائمتك المخصصة مباشرة في وباقة منفصلة داخل التطبيق.", color = DasturTheme.TextMuted, fontSize = 10.sp)
-                            Spacer(modifier = Modifier.height(12.dp))
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        GlassGroup(
+                            title = "نوع الاتصال ومصدر القنوات",
+                            subtitle = "اختر صيغة رابط ملف القنوات (M3U) أو اشتراكك عبر الأبي ميت لـ Xtream"
+                        ) {
+                            var inputMode by remember { mutableStateOf("m3u") }
+                            var xtreamHost by remember { mutableStateOf("") }
+                            var xtreamUser by remember { mutableStateOf("") }
+                            var xtreamPass by remember { mutableStateOf("") }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), 
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .background(DasturTheme.SecondaryDark, RoundedCornerShape(10.dp))
+                                        .border(1.2.dp, if (inputMode == "m3u") DasturTheme.PrimaryRed else Color.Transparent, RoundedCornerShape(10.dp))
+                                        .clickable { inputMode = "m3u" }
+                                        .padding(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    Text("رابط M3U", color = if (inputMode == "m3u") Color.White else DasturTheme.TextMain, fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
+                                }
+                                Row(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .background(DasturTheme.SecondaryDark, RoundedCornerShape(10.dp))
+                                        .border(1.2.dp, if (inputMode == "xtream") DasturTheme.PrimaryRed else Color.Transparent, RoundedCornerShape(10.dp))
+                                        .clickable { inputMode = "xtream" }
+                                        .padding(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    Text("Xtream Codes", color = if (inputMode == "xtream") Color.White else DasturTheme.TextMain, fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
                             
-                            TextField(
-                                value = customM3uUrl,
-                                onValueChange = { customM3uUrl = it },
-                                placeholder = { Text("أدخل رابط m3u الخاص بك هنا...", color = DasturTheme.TextMuted, fontSize = 12.sp) },
-                                singleLine = true,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .border(1.dp, DasturTheme.BorderSoft, RoundedCornerShape(8.dp)),
-                                colors = TextFieldDefaults.colors(
-                                    focusedContainerColor = DasturTheme.SecondaryDark,
-                                    unfocusedContainerColor = DasturTheme.SecondaryDark,
-                                    focusedIndicatorColor = Color.Transparent,
-                                    unfocusedIndicatorColor = Color.Transparent,
-                                    focusedTextColor = Color.White,
-                                    unfocusedTextColor = Color.White
-                                ),
-                                shape = RoundedCornerShape(8.dp),
-                                enabled = !isSaving
-                            )
+                            HorizontalDivider(color = DasturTheme.BorderSoft.copy(alpha = 0.5f), thickness = 1.dp)
+
+                            if (inputMode == "m3u") {
+                                Text("رابط ملف القنوات (M3U / M3U8)", color = DasturTheme.TextMain, fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                                Text("انسخ والصق رابط قنواتك المخصصة مباشرة تحت لدمجها تلقائياً بالباقات.", color = DasturTheme.TextMuted, fontSize = 9.5.sp)
+                                
+                                TextField(
+                                    value = customM3uUrl,
+                                    onValueChange = { customM3uUrl = it },
+                                    placeholder = { Text("أدخل رابط m3u الخاص بك هنا...", color = DasturTheme.TextMuted, fontSize = 12.sp) },
+                                    singleLine = true,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .border(1.2.dp, DasturTheme.BorderSoft, RoundedCornerShape(12.dp)),
+                                    colors = TextFieldDefaults.colors(
+                                        focusedContainerColor = DasturTheme.SecondaryDark,
+                                        unfocusedContainerColor = DasturTheme.SecondaryDark,
+                                        focusedIndicatorColor = Color.Transparent,
+                                        unfocusedIndicatorColor = Color.Transparent,
+                                        focusedTextColor = Color.White,
+                                        unfocusedTextColor = Color.White
+                                    ),
+                                    shape = RoundedCornerShape(12.dp),
+                                    enabled = !isSaving
+                                )
+                            } else {
+                                Text("بيانات حساب Xtream API", color = DasturTheme.TextMain, fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                                Text("أدخل خادم (Host) واسم مستخدم ورمز المرور لاشتراكك المباشر.", color = DasturTheme.TextMuted, fontSize = 9.5.sp)
+                                
+                                TextField(
+                                    value = xtreamHost,
+                                    onValueChange = { xtreamHost = it },
+                                    placeholder = { Text("مثال: http://iptv-server.com:8080", color = DasturTheme.TextMuted, fontSize = 12.sp) },
+                                    singleLine = true,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .border(1.2.dp, DasturTheme.BorderSoft, RoundedCornerShape(12.dp)),
+                                    colors = TextFieldDefaults.colors(
+                                        focusedContainerColor = DasturTheme.SecondaryDark, unfocusedContainerColor = DasturTheme.SecondaryDark, focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent, focusedTextColor = Color.White, unfocusedTextColor = Color.White
+                                    ),
+                                    shape = RoundedCornerShape(12.dp),
+                                    enabled = !isSaving
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    TextField(
+                                        value = xtreamUser, 
+                                        onValueChange = { xtreamUser = it }, 
+                                        placeholder = { Text("اسم المستخدم", color = DasturTheme.TextMuted, fontSize = 11.5.sp) }, 
+                                        singleLine = true, 
+                                        modifier = Modifier.weight(1f).border(1.2.dp, DasturTheme.BorderSoft, RoundedCornerShape(12.dp)), 
+                                        colors = TextFieldDefaults.colors(focusedContainerColor = DasturTheme.SecondaryDark, unfocusedContainerColor = DasturTheme.SecondaryDark, focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent, focusedTextColor = Color.White, unfocusedTextColor = Color.White), 
+                                        shape = RoundedCornerShape(12.dp), 
+                                        enabled = !isSaving
+                                    )
+                                    TextField(
+                                        value = xtreamPass, 
+                                        onValueChange = { xtreamPass = it }, 
+                                        placeholder = { Text("كلمة المرور", color = DasturTheme.TextMuted, fontSize = 11.5.sp) }, 
+                                        singleLine = true, 
+                                        modifier = Modifier.weight(1f).border(1.2.dp, DasturTheme.BorderSoft, RoundedCornerShape(12.dp)), 
+                                        colors = TextFieldDefaults.colors(focusedContainerColor = DasturTheme.SecondaryDark, unfocusedContainerColor = DasturTheme.SecondaryDark, focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent, focusedTextColor = Color.White, unfocusedTextColor = Color.White), 
+                                        shape = RoundedCornerShape(12.dp), 
+                                        enabled = !isSaving
+                                    )
+                                }
+                            }
                             
-                            // State feedback card
                             if (syncStatusMessage != null) {
-                                Spacer(modifier = Modifier.height(12.dp))
                                 val (bgCol, borderCol, textCol) = when (syncIsSuccess) {
                                     true -> Triple(Color(0x1F10B981), Color(0xFF10B981), Color(0xFF34D399))
                                     false -> Triple(Color(0x1FEF4444), Color(0xFFEF4444), Color(0xFFF87171))
-                                    null -> Triple(Color(0x1FF59E0B), Color(0xFFF59E0B), Color(0xFFFBBF24))
+                                    null -> Triple(DasturTheme.PrimaryRed.copy(alpha = 0.12f), DasturTheme.PrimaryRed, DasturTheme.PrimaryRed)
                                 }
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .clip(RoundedCornerShape(8.dp))
+                                        .clip(RoundedCornerShape(12.dp))
                                         .background(bgCol)
-                                        .border(1.dp, borderCol, RoundedCornerShape(8.dp))
+                                        .border(1.dp, borderCol.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
                                         .padding(12.dp)
                                 ) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1584,11 +2201,11 @@ fun SettingsView(
                                             CircularProgressIndicator(
                                                 modifier = Modifier.size(16.dp),
                                                 strokeWidth = 2.dp,
-                                                color = DasturTheme.AccentAmber
+                                                color = DasturTheme.PrimaryRed
                                             )
                                         } else {
                                             Icon(
-                                                imageVector = if (syncIsSuccess == true) Icons.Default.Check else Icons.Default.Warning,
+                                                imageVector = if (syncIsSuccess == true) Icons.Rounded.Check else Icons.Rounded.Warning,
                                                 contentDescription = "حالة",
                                                 tint = textCol,
                                                 modifier = Modifier.size(16.dp)
@@ -1599,13 +2216,13 @@ fun SettingsView(
                                             text = syncStatusMessage ?: "",
                                             color = textCol,
                                             fontSize = 11.sp,
-                                            fontWeight = FontWeight.Medium
+                                            fontWeight = FontWeight.Bold
                                         )
                                     }
                                 }
                             }
                             
-                            Spacer(modifier = Modifier.height(20.dp))
+                            Spacer(modifier = Modifier.height(10.dp))
                             
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -1613,26 +2230,54 @@ fun SettingsView(
                             ) {
                                 Button(
                                     onClick = { 
+                                        if (inputMode == "xtream") {
+                                            if (xtreamHost.isBlank() || xtreamUser.isBlank() || xtreamPass.isBlank()) {
+                                                syncIsSuccess = false
+                                                syncStatusMessage = "يرجى ملء جميع حقول حساب Xtream (الرابط، المستخدم، كلمة المرور)"
+                                                return@Button
+                                            }
+                                            if (!xtreamHost.startsWith("http://") && !xtreamHost.startsWith("https://")) {
+                                                syncIsSuccess = false
+                                                syncStatusMessage = "رابط الهوست غير صالح. يجب أن يبدأ بـ http:// أو https://"
+                                                return@Button
+                                            }
+                                            
+                                            val cleanHost = xtreamHost.trim().removeSuffix("/")
+                                            customM3uUrl = "$cleanHost/get.php?username=${xtreamUser.trim()}&password=${xtreamPass.trim()}&type=m3u_plus&output=ts"
+                                        } else {
+                                            if (customM3uUrl.isNotBlank() && !customM3uUrl.startsWith("http://") && !customM3uUrl.startsWith("https://")) {
+                                                syncIsSuccess = false
+                                                syncStatusMessage = "الرابط غير صالح. يرجى إدخال رابط M3U صحيح يبدأ بـ http:// أو https://"
+                                                return@Button
+                                            }
+                                        }
+                                        
                                         isSaving = true
                                         syncIsSuccess = null
-                                        syncStatusMessage = "جاري جلب القنوات والاتصال بمزود الخدمة..."
+                                        syncStatusMessage = "جاري التحقق وجلب قنواتك المشتركة لدمجها..."
                                         onRefreshList(customM3uUrl) { result ->
                                             isSaving = false
                                             result.onSuccess { count ->
                                                 syncIsSuccess = true
-                                                syncStatusMessage = "تم جلب القنوات بنجاح! تم مزامنة وتثبيت $count قناة خاصة بك."
+                                                syncStatusMessage = "تم جلب القنوات بنجاح! تم تحميل $count قناة وإضافتها بنجاح."
                                             }.onFailure { err ->
                                                 syncIsSuccess = false
-                                                syncStatusMessage = "خطأ: ${err.message}"
+                                                syncStatusMessage = "خطأ في الاتصال: ${err.message}"
                                             }
                                         }
                                     },
                                     colors = ButtonDefaults.buttonColors(containerColor = DasturTheme.PrimaryRed),
-                                    modifier = Modifier.weight(1f),
-                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.weight(1.2f).height(46.dp),
+                                    shape = RoundedCornerShape(12.dp),
                                     enabled = !isSaving
                                 ) {
-                                    Text("حفظ وتحديث المصدر", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    if (isSaving) {
+                                        CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.White, strokeWidth = 2.dp)
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text("جاري الجلب...", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    } else {
+                                        Text("حفظ ومزامنة المصدر", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Black)
+                                    }
                                 }
 
                                 if (customM3uUrl.isNotBlank()) {
@@ -1640,13 +2285,13 @@ fun SettingsView(
                                         onClick = {
                                             isSaving = true
                                             syncIsSuccess = null
-                                            syncStatusMessage = "جاري إعادة تعيين المصادر..."
+                                            syncStatusMessage = "جاري استعادة ملف البث الافتراضي المدمج..."
                                             customM3uUrl = ""
                                             onRefreshList("") { result ->
                                                 isSaving = false
                                                 result.onSuccess {
                                                     syncIsSuccess = true
-                                                    syncStatusMessage = "تم إعادة تعيين مصادر البث وتحديث القنوات العامة بنجاح."
+                                                    syncStatusMessage = "تمت استعادة مصادر البث وتحديث القنوات الافتراضية بنجاح."
                                                 }.onFailure { err ->
                                                     syncIsSuccess = false
                                                     syncStatusMessage = "خطأ: ${err.message}"
@@ -1654,11 +2299,12 @@ fun SettingsView(
                                             }
                                         },
                                         colors = ButtonDefaults.buttonColors(containerColor = DasturTheme.SecondaryDark),
-                                        modifier = Modifier.weight(0.8f),
-                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier.weight(0.8f).height(46.dp),
+                                        shape = RoundedCornerShape(12.dp),
+                                        border = BorderStroke(1.dp, DasturTheme.BorderSoft),
                                         enabled = !isSaving
                                     ) {
-                                        Text("إستعادة الافتراضي", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                                        Text("إستعادة الافتراضي", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                     }
                                 }
                             }
@@ -1666,414 +2312,582 @@ fun SettingsView(
                     }
                 }
                 "quality" -> {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(DasturTheme.SurfaceDark, RoundedCornerShape(12.dp))
-                                .border(1.dp, DasturTheme.BorderSoft, RoundedCornerShape(12.dp))
-                                .padding(14.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        GlassGroup(
+                            title = "خصائص العرض والمشغل الذكي",
+                            subtitle = "خيارات الإضاءة التفاعلية وفك الترميز وحسابات الأبعاد"
                         ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text("وضع السينما والإضاءة المحيطة", color = DasturTheme.TextMain, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                Text("تفعيل هالة توهج لينة خلف مشغل الفيديو لتحسين الرؤية", color = DasturTheme.TextMuted, fontSize = 10.sp)
-                            }
-                            Switch(
+                            PremiumSwitchRow(
+                                title = "وضع السينما والإضاءة المحيطة",
+                                subtitle = "تفعيل هالة توهج لينة خلف مشغل الفيديو للتخفيف من إجهاد العين",
                                 checked = ambientGlowEnabled,
-                                onCheckedChange = { ambientGlowEnabled = it },
-                                colors = SwitchDefaults.colors(checkedThumbColor = DasturTheme.PrimaryRed, checkedTrackColor = DasturTheme.PrimaryRed.copy(alpha = 0.4f))
+                                onCheckedChange = onAmbientGlowChange,
+                                icon = Icons.Rounded.Star,
+                                iconColor = DasturTheme.AccentAmber
                             )
-                        }
-
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(DasturTheme.SurfaceDark, RoundedCornerShape(12.dp))
-                                .border(1.dp, DasturTheme.BorderSoft, RoundedCornerShape(12.dp))
-                                .padding(14.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text("فك ترميز الهاردوير (تسريع الأجهزة)", color = DasturTheme.TextMain, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                Text("استخدام المعالج الرسومي للجهاز لتقليل استهلاك البطارية والسخونة", color = DasturTheme.TextMuted, fontSize = 10.sp)
-                            }
-                            Switch(
+                            HorizontalDivider(color = DasturTheme.BorderSoft.copy(alpha = 0.4f), thickness = 1.dp)
+                            PremiumSwitchRow(
+                                title = "فك ترميز الهاردوير (تسريع الأجهزة)",
+                                subtitle = "استخدام المعالج الرسومي للجهاز لتقليل استهلاك البطارية والسخونة",
                                 checked = useHardwareAcceleration,
                                 onCheckedChange = { useHardwareAcceleration = it },
-                                colors = SwitchDefaults.colors(checkedThumbColor = DasturTheme.PrimaryRed, checkedTrackColor = DasturTheme.PrimaryRed.copy(alpha = 0.4f))
+                                icon = Icons.Rounded.Build,
+                                iconColor = DasturTheme.PrimaryRed
+                            )
+                            HorizontalDivider(color = DasturTheme.BorderSoft.copy(alpha = 0.4f), thickness = 1.dp)
+                            PremiumSwitchRow(
+                                title = "فرض ملء الشاشة بنسبة 16:9",
+                                subtitle = "مكافحة ظهور الحواف السوداء تلقائياً عبر مطابقة شاشة البث السينمائي",
+                                checked = forceWidescreen,
+                                onCheckedChange = { forceWidescreen = it },
+                                icon = Icons.Rounded.PlayArrow,
+                                iconColor = Color(0xFF3B82F6)
                             )
                         }
 
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(DasturTheme.SurfaceDark, RoundedCornerShape(12.dp))
-                                .border(1.dp, DasturTheme.BorderSoft, RoundedCornerShape(12.dp))
-                                .padding(14.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                        GlassGroup(
+                            title = "طابع فخم متكامل (ثيمات المنصة)",
+                            subtitle = "قم بتفعيل الطابع الذي يروق لك، وسيتحول كامل نظام الألوان والأضواء والخلفيات بنسبة ١٠٠٪ لتكتمل الفخامة."
                         ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text("فرض ملء الشاشة بنسبة 16:9", color = DasturTheme.TextMain, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                Text("تعديل أبعاد قنوات البث التلفزيوني تلقائياً لمنع ظهور البار الأسود", color = DasturTheme.TextMuted, fontSize = 10.sp)
+                            val isOriginalActive = activeThemeId == "crimson_neon"
+                            
+                            // 1. Original Classic Cinematic Crimson Theme
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(
+                                        if (isOriginalActive) DasturTheme.SecondaryDark else Color.Transparent,
+                                        RoundedCornerShape(14.dp)
+                                    )
+                                    .border(
+                                        width = if (isOriginalActive) 1.5.dp else 1.dp,
+                                        color = if (isOriginalActive) DasturTheme.PrimaryRed else DasturTheme.BorderSoft.copy(alpha = 0.5f),
+                                        shape = RoundedCornerShape(14.dp)
+                                    )
+                                    .clickable { onThemeChange("crimson_neon") }
+                                    .padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    modifier = Modifier
+                                        .background(Color(0xFF060609), RoundedCornerShape(10.dp))
+                                        .border(1.dp, DasturTheme.BorderSoft.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
+                                        .padding(8.dp)
+                                ) {
+                                    Box(modifier = Modifier.size(14.dp).background(Color(0xFFE50914), CircleShape))
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Box(modifier = Modifier.size(14.dp).background(Color(0xFFFFB703), CircleShape))
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = "ثيم التطبيق الأصلي (الافتراضي)",
+                                            color = if (isOriginalActive) DasturTheme.PrimaryRed else Color.White,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        if (isOriginalActive) {
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Box(
+                                                modifier = Modifier
+                                                    .background(DasturTheme.PrimaryRed.copy(alpha = 0.12f), RoundedCornerShape(6.dp))
+                                                    .border(1.dp, DasturTheme.PrimaryRed, RoundedCornerShape(6.dp))
+                                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                                            ) {
+                                                Text("نشط حالياً", color = DasturTheme.PrimaryRed, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                                            }
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = "الطابع الكلاسيكي السينمائي الفاخر باللون القرمزي والذهب البراق.",
+                                        color = DasturTheme.TextMuted,
+                                        fontSize = 9.5.sp,
+                                        lineHeight = 13.sp
+                                    )
+                                }
                             }
-                            Switch(
-                                checked = forceWidescreen,
-                                onCheckedChange = { forceWidescreen = it },
-                                colors = SwitchDefaults.colors(checkedThumbColor = DasturTheme.PrimaryRed, checkedTrackColor = DasturTheme.PrimaryRed.copy(alpha = 0.4f))
+
+                            val extraThemes = listOf(
+                                Triple("calm_slate", "الرمادي الكوزمي الهادئ", "طيف مريح للعين مطعم بدرجات رمادي هادئة وبخ البث السماوي والأزرق"),
+                                Triple("royal_gold", "الملكي الذهبي الأندلسي", "رونق أندلسي مخملي يمزج الذهب مع زرقة الليل والأخضر الزمردي اللامع"),
+                                Triple("active_emerald", "الأخضر السيبيري الرياضي", "طاقة رنانة وتوهجات خضراء وفسفورية مصممة خصيصاً للمباريات وجماهير الرياضة")
                             )
+
+                            extraThemes.forEach { (tid, tname, tdesc) ->
+                                val isSelected = activeThemeId == tid
+                                val (colorPri, colorAcc, colorBg) = when(tid) {
+                                    "calm_slate" -> Triple(Color(0xFF00B4D8), Color(0xFF90E0EF), Color(0xFF090D13))
+                                    "royal_gold" -> Triple(Color(0xFFFFD54F), Color(0xFF00E676), Color(0xFF040610))
+                                    "active_emerald" -> Triple(Color(0xFF00E676), Color(0xFFAEEA00), Color(0xFF030804))
+                                    else -> Triple(Color(0xFFE50914), Color(0xFFFFB703), Color(0xFF060609))
+                                }
+
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(
+                                            if (isSelected) DasturTheme.SecondaryDark else Color.Transparent,
+                                            RoundedCornerShape(14.dp)
+                                        )
+                                        .border(
+                                            width = if (isSelected) 1.5.dp else 1.dp,
+                                            color = if (isSelected) DasturTheme.PrimaryRed else DasturTheme.BorderSoft.copy(alpha = 0.5f),
+                                            shape = RoundedCornerShape(14.dp)
+                                        )
+                                        .clickable { 
+                                            onThemeChange(if (isSelected) "crimson_neon" else tid) 
+                                        }
+                                        .padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        modifier = Modifier
+                                            .background(colorBg, RoundedCornerShape(10.dp))
+                                            .border(1.dp, DasturTheme.BorderSoft.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
+                                            .padding(8.dp)
+                                    ) {
+                                        Box(modifier = Modifier.size(14.dp).background(colorPri, CircleShape))
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Box(modifier = Modifier.size(14.dp).background(colorAcc, CircleShape))
+                                    }
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                text = tname,
+                                                color = if (isSelected) DasturTheme.PrimaryRed else Color.White,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            if (isSelected) {
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Box(
+                                                    modifier = Modifier
+                                                        .background(DasturTheme.PrimaryRed.copy(alpha = 0.12f), RoundedCornerShape(6.dp))
+                                                        .border(1.dp, DasturTheme.PrimaryRed, RoundedCornerShape(6.dp))
+                                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                                ) {
+                                                    Text("نشط حالياً", color = DasturTheme.PrimaryRed, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                                                }
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = tdesc,
+                                            color = DasturTheme.TextMuted,
+                                            fontSize = 9.5.sp,
+                                            lineHeight = 13.sp
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Switch(
+                                        checked = isSelected,
+                                        onCheckedChange = { isChecked ->
+                                            onThemeChange(if (isChecked) tid else "crimson_neon")
+                                        },
+                                        colors = SwitchDefaults.colors(
+                                            checkedThumbColor = Color.White,
+                                            checkedTrackColor = DasturTheme.PrimaryRed,
+                                            uncheckedThumbColor = DasturTheme.TextMuted,
+                                            uncheckedTrackColor = DasturTheme.SecondaryDark,
+                                            uncheckedBorderColor = DasturTheme.BorderSoft
+                                        )
+                                    )
+                                }
+                            }
                         }
                     }
                 }
                 "privacy" -> {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(DasturTheme.SurfaceDark)
-                            .border(1.dp, DasturTheme.BorderSoft, RoundedCornerShape(16.dp))
-                            .padding(16.dp)
-                    ) {
-                        Column {
-                            Text("خصوصية وأمان تطبيق DSTWR TV", color = DasturTheme.TextMain, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                            Spacer(modifier = Modifier.height(8.dp))
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        GlassGroup(
+                            title = "دليل والضمانات الأمنية الكاملة",
+                            subtitle = "أمان وسرية المستخدم هي ركيزة التشغيل لمنصة البث"
+                        ) {
                             Text(
-                                "نحن في DSTWR TV نولي أهمية قصوى لخصوصيتك. جميع عمليات معالجة وحفظ البيانات والاشتراكات والمفضلة تتم محلياً ومباشرة في جهازك، ولا نقوم برفع أو نسخ أي بيانات تتعلق بسجل مشاهدتك وقنواتك المفضلة إلى أي خوادم خارجية.\n\nإن نظام تصفية العائلات والحاجز الأخلاق مفعل تلقائياً ونشط بالكامل ولا يمكن تعطيله لضمان بيئة عائلية آمنة في جميع الأوقات.",
+                                text = "نحن في DSTWR TV نولي أهمية قصوى لخصوصيتك. جميع عمليات معالجة وحفظ البيانات والاشتراكات والمفضلة تتم محلياً ومباشرة في جهازك، ولا نقوم برفع أو نسخ أي بيانات تتعلق بسجل مشاهدتك وقنواتك المفضلة إلى أي خوادم خارجية.\n\nإن نظام تصفية العائلات والحاجز الأخلاق مفعل تلقائياً ونشط بالكامل ولا يمكن تعطيله لضمان بيئة عائلية آمنة في جميع الأوقات.\n\nكلما تشاهد القنوات أو تحدث روابط m3u، فالمزامنة تتم بشكل مجهول ومدرع لحماية خصوصيتك وعنوان بروتوكول الإنترنت بالكامل عن المتلصصين.",
                                 color = DasturTheme.TextMuted,
                                 fontSize = 11.sp,
-                                lineHeight = 16.sp
+                                lineHeight = 17.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+                "sources" -> {
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        GlassGroup(
+                            title = "خيارات العرض وطريقة الدمج",
+                            subtitle = "حدد الطريقة المفضلة لعرض وتصفية قنوات البث ومطابقتها"
+                        ) {
+                            val modes = listOf(
+                                "merged" to Triple("Merged Mode", "قنوات المطور الافتراضية مع قنواتك المضافة معاً بنظام مدمج سلس", "merged"),
+                                "user_only" to Triple("User Only", "قصر البث على قنواتك وملفك المرفوع فقط (إخفاء الافتراضي)", "user_only"),
+                                "dev_only" to Triple("Developer Only", "مشاهدة قنوات المطور الافتراضية المدمجة في النظام فقط لحمايتك", "dev_only")
+                            )
+
+                            modes.forEachIndexed { idx, (key, info) ->
+                                val (mTitle, mSub, mKey) = info
+                                PremiumRadioButtonRow(
+                                    title = mTitle,
+                                    subtitle = mSub,
+                                    selected = sourceMode == mKey,
+                                    onSelect = {
+                                        sourceMode = mKey
+                                        sharedPrefs.edit().putString("source_mode", mKey).apply()
+                                        onRefreshList(customM3uUrl) {}
+                                    }
+                                )
+                                if (idx < modes.size - 1) {
+                                    HorizontalDivider(color = DasturTheme.BorderSoft.copy(alpha = 0.4f), thickness = 1.dp)
+                                }
+                            }
+                        }
+
+                        GlassGroup(
+                            title = "عرض المطور السريع للباقات",
+                            subtitle = "إظهار أو حجب الباقات ومحطات المطور من اللوائح بنقرة واحدة"
+                        ) {
+                            PremiumSwitchRow(
+                                title = "تفعيل قنوات وباقات المطور الافتراضية",
+                                subtitle = if (showDevPackage) "نشط = يظهر قنوات النظام" else "معطل = يحجب قنوات النظام كاملة ويقتصر على باقتك",
+                                checked = showDevPackage,
+                                onCheckedChange = { isChecked ->
+                                    showDevPackage = isChecked
+                                    sharedPrefs.edit().putBoolean("show_dev_package", isChecked).apply()
+                                    onRefreshList(customM3uUrl) {}
+                                },
+                                icon = Icons.Rounded.FavoriteBorder,
+                                iconColor = DasturTheme.PrimaryRed
                             )
                         }
                     }
                 }
                 "about" -> {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(DasturTheme.SurfaceDark)
-                            .border(1.dp, DasturTheme.BorderSoft, RoundedCornerShape(16.dp))
-                            .padding(16.dp)
-                    ) {
-                        Column {
-                            Text("حول منصة DSTWR TV", color = DasturTheme.TextMain, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                            Spacer(modifier = Modifier.height(8.dp))
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        GlassGroup(
+                            title = "حقوق وعمل منصة DSTWR TV",
+                            subtitle = "منبر إعلامي فريد عائلي فخم"
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("إصدار التطبيق الفضي الألترا", color = DasturTheme.TextMain, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Box(
+                                    modifier = Modifier
+                                        .background(DasturTheme.AccentAmber.copy(alpha = 0.12f), RoundedCornerShape(8.dp))
+                                        .border(1.dp, DasturTheme.AccentAmber.copy(alpha = 0.35f), RoundedCornerShape(8.dp))
+                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                ) {
+                                    Text("v2.5.0 Premium", color = DasturTheme.AccentAmber, fontSize = 9.sp, fontWeight = FontWeight.Black)
+                                }
+                            }
+                            HorizontalDivider(color = DasturTheme.BorderSoft.copy(alpha = 0.4f), thickness = 1.dp)
                             Text(
-                                "تطبيق DSTWR TV هو المنصة الترفيهية الفاخرة والأولى لبث القنوات الرياضية والترفيهية والسينمائية المباشرة.\n\n" +
-                                "مطور خصيصاً ليقدم تجربة سينمائية زجاجية متكاملة تليق بتطلعات المستخدم العربي.\n\n" +
-                                "إصدار التطبيق الحالي: v2.5.0 Premium Ultra\n" +
-                                "حقوق الملكية الفكرية والعمل محفوظة © محمد الدستور 2026.",
+                                text = "تطبيق DSTWR TV هو المنصة الترفيهية الفاخرة والأولى لبث القنوات الرياضية والترفيهية والسينمائية المباشرة.\n\n" +
+                                "مطور ومصمم بمرآة زجاجية زهرية تقدم تجربة سينمائية فريدة تلبي تطلعات الشغوفين بالبث الأسرع بجودة ممتازة وخالية من الإعلانات تماماً.\n\n" +
+                                "جميع الحقوق محفوظة لصالح محمد الدستور ٢٠٢٦ م.",
                                 color = DasturTheme.TextMuted,
                                 fontSize = 11.sp,
-                                lineHeight = 16.sp
+                                lineHeight = 17.sp,
+                                fontWeight = FontWeight.Medium
                             )
                         }
                     }
                 }
             }
         } else {
-            // Premium Profile Card (Mohammed Al-Dastour!)
-            Box(
+            // ═══════════════════════════════════════════════════════════════════════════════════════
+            // Premium VIP Membership Profile Card (Mohammed Al-Dastour!)
+            // ═══════════════════════════════════════════════════════════════════════════════════════
+            Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 12.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                Color(0x22FFFFFF),
-                                Color(0x05FFFFFF)
+                    .padding(top = 16.dp, bottom = 20.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+                shape = RoundedCornerShape(18.dp),
+                border = BorderStroke(1.2.dp, DasturTheme.BorderSoft)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(
+                                    DasturTheme.SecondaryDark.copy(alpha = 0.5f),
+                                    DasturTheme.SurfaceDark.copy(alpha = 0.9f)
+                                )
                             )
                         )
-                    )
-                    .border(
-                        border = BorderStroke(1.2.dp, Brush.linearGradient(listOf(DasturTheme.PrimaryRed.copy(alpha = 0.5f), Color(0x1F2A2A3D)))),
-                        shape = RoundedCornerShape(16.dp)
-                    )
-                    .padding(20.dp)
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                        .padding(16.dp)
                 ) {
-                    DstwrLogo(size = 72.dp)
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    Text(
-                        text = "محمد الدستور",
-                        color = DasturTheme.TextMain,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Black
-                    )
-                    Text(
-                        text = "مطور ومؤسس تطبيق DSTWR TV",
-                        color = DasturTheme.AccentAmber,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Button(
-                            onClick = {
-                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://instagram.com/ds.r6"))
-                                context.startActivity(intent)
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = DasturTheme.SecondaryDark),
-                            border = BorderStroke(1.dp, DasturTheme.BorderSoft),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.height(32.dp),
-                            contentPadding = PaddingValues(start = 14.dp, top = 4.dp, end = 14.dp, bottom = 4.dp)
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        // 1. Refined Glowing Verified Circular Frame
+                        Box(
+                            modifier = Modifier
+                                .size(84.dp)
+                                .background(DasturTheme.PureBlack, CircleShape)
+                                .border(
+                                    border = BorderStroke(
+                                        width = 2.dp, 
+                                        brush = Brush.linearGradient(listOf(DasturTheme.PrimaryRed, DasturTheme.AccentAmber))
+                                    ),
+                                    shape = CircleShape
+                                )
+                                .padding(12.dp),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Text("انستغرام", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            DstwrLogo(size = 54.dp)
                         }
 
-                        Button(
-                            onClick = {
-                                val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:support@dastur.tv"))
-                                context.startActivity(intent)
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = DasturTheme.SecondaryDark),
-                            border = BorderStroke(1.dp, DasturTheme.BorderSoft),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.height(32.dp),
-                            contentPadding = PaddingValues(start = 14.dp, top = 4.dp, end = 14.dp, bottom = 4.dp)
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // 2. Name Badge + Instagram verify Blue Circle
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
                         ) {
-                            Text("الدعم الفني", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            Text(
+                                text = "محمد الدستور",
+                                color = DasturTheme.TextMain,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Black,
+                                letterSpacing = 0.3.sp
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Icon(
+                                imageVector = Icons.Rounded.CheckCircle,
+                                contentDescription = "Verified Account Badge",
+                                tint = Color(0xFF3897F0), // Luxury Certified Instagram Cyan
+                                modifier = Modifier.size(16.dp)
+                            )
                         }
-                    }
-                }
-            }
 
-            Spacer(modifier = Modifier.height(20.dp))
+                        Spacer(modifier = Modifier.height(3.dp))
 
-            Text("قائمة الإعدادات وسيرفر البث", color = DasturTheme.TextMain, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        // 3. Mini golden role text framed with luxury brackets
+                        Text(
+                            text = "✦ مطور ومؤسس تطبيق DSTWR TV ✦",
+                            color = DasturTheme.AccentAmber,
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 0.5.sp
+                        )
 
-            Spacer(modifier = Modifier.height(10.dp))
+                        Spacer(modifier = Modifier.height(16.dp))
+                        
+                        // 4. Custom statistics pills that display live counts of the application!
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .background(DasturTheme.SecondaryDark, RoundedCornerShape(12.dp))
+                                    .border(1.dp, DasturTheme.BorderSoft.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                                    .padding(vertical = 10.dp, horizontal = 4.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(
+                                        text = "$totalChannelsCount", 
+                                        color = DasturTheme.PrimaryRed, 
+                                        fontSize = 15.sp, 
+                                        fontWeight = FontWeight.Black
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = "قناة متوفرة", 
+                                        color = DasturTheme.TextMuted, 
+                                        fontSize = 8.5.sp, 
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
 
-            // 1. Sync / Refresh card
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp)
-                    .clickable {
-                        onRefreshList(customM3uUrl) { result ->
-                            result.onSuccess { count ->
-                                android.widget.Toast.makeText(
-                                    context, 
-                                    if (count > 0) "تمت مزامنة البث بنجاح! تم تحميل $count من قنواتك الخاصة."
-                                    else "تمت مزامنة القنوات الافتراضية بنجاح!", 
-                                    android.widget.Toast.LENGTH_LONG
-                                ).show()
-                            }.onFailure { err ->
-                                android.widget.Toast.makeText(context, "فشل المزامنة: ${err.message}", android.widget.Toast.LENGTH_LONG).show()
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .background(DasturTheme.SecondaryDark, RoundedCornerShape(12.dp))
+                                    .border(1.dp, DasturTheme.BorderSoft.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                                    .padding(vertical = 10.dp, horizontal = 4.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(
+                                        text = "$favoritesCount", 
+                                        color = DasturTheme.AccentAmber, 
+                                        fontSize = 15.sp, 
+                                        fontWeight = FontWeight.Black
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = "قناة مفضلة", 
+                                        color = DasturTheme.TextMuted, 
+                                        fontSize = 8.5.sp, 
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
                         }
-                    },
-                colors = CardDefaults.cardColors(containerColor = DasturTheme.SurfaceDark),
-                shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, DasturTheme.BorderSoft)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Refresh, contentDescription = null, tint = DasturTheme.PrimaryRed, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text("مزامنة وتنزيل قنوات البث", color = DasturTheme.TextMain, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            Text("$totalChannelsCount قناة في الذاكرة الحالية", color = DasturTheme.TextMuted, fontSize = 10.sp)
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // 5. Action Buttons styled under extreme glass reflection details
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.fillMaxWidth(0.95f)
+                        ) {
+                            Button(
+                                onClick = {
+                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://instagram.com/ds.r6"))
+                                    context.startActivity(intent)
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = DasturTheme.SurfaceDark),
+                                border = BorderStroke(1.dp, DasturTheme.BorderSoft),
+                                shape = RoundedCornerShape(16.dp),
+                                modifier = Modifier.weight(1f).height(40.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.AccountCircle,
+                                    contentDescription = null,
+                                    tint = Color(0xFFE1306C), // Luxury Instagram pink
+                                    modifier = Modifier.size(15.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("انستغرام المطور", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
+
+                            Button(
+                                onClick = {
+                                    val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:support@dastur.tv"))
+                                    context.startActivity(intent)
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = DasturTheme.SurfaceDark),
+                                border = BorderStroke(1.dp, DasturTheme.BorderSoft),
+                                shape = RoundedCornerShape(16.dp),
+                                modifier = Modifier.weight(1f).height(40.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Email,
+                                    contentDescription = null,
+                                    tint = DasturTheme.PrimaryRed,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("الدعم والبريد", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
                         }
-                    }
-                    if (isLoading) {
-                        CircularProgressIndicator(color = DasturTheme.PrimaryRed, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                    } else {
-                        Icon(Icons.Default.KeyboardArrowLeft, contentDescription = null, tint = DasturTheme.TextMuted, modifier = Modifier.size(16.dp))
                     }
                 }
             }
 
-            // 2. M3U Server connection setup
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp)
-                    .clickable { activeSubPage = "server" },
-                colors = CardDefaults.cardColors(containerColor = DasturTheme.SurfaceDark),
-                shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, DasturTheme.BorderSoft)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Build, contentDescription = null, tint = DasturTheme.AccentAmber, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text("إعدادات السيرفر والمصدر", color = DasturTheme.TextMain, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            Text("تعديل روابط باقات تشغيل قنوات M3U يدوياً", color = DasturTheme.TextMuted, fontSize = 10.sp)
-                        }
-                    }
-                    Icon(Icons.Default.KeyboardArrowLeft, contentDescription = null, tint = DasturTheme.TextMuted, modifier = Modifier.size(16.dp))
-                }
-            }
+            Spacer(modifier = Modifier.height(12.dp))
+            Text("قائمة الإعدادات والمصادر", color = DasturTheme.TextMain, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 6.dp))
 
-            // 3. Playback customizer options
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp)
-                    .clickable { activeSubPage = "quality" },
-                colors = CardDefaults.cardColors(containerColor = DasturTheme.SurfaceDark),
-                shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, DasturTheme.BorderSoft)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color(0xFF3B82F6), modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text("خيارات العرض والسينما", color = DasturTheme.TextMain, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            Text("مسرح الإضاءة ومحسّن تسريع الفيديو ومحدد الاقتصاص", color = DasturTheme.TextMuted, fontSize = 10.sp)
+            // 1. Sync Channels Card
+            PremiumMenuOptionCard(
+                title = "مزامنة وتنزيل القنوات المباشرة",
+                subtitle = "جلب وتحديث القنوات العامة المدمجة في خوادم البث",
+                icon = Icons.Rounded.Refresh,
+                iconColor = DasturTheme.PrimaryRed,
+                onClick = {
+                    onRefreshList(customM3uUrl) { result ->
+                        result.onSuccess { count ->
+                            onShowNotification(
+                                if (count > 0) "تم الجلب والمزامنة بنجاح! ($count قناة)"
+                                else "تمت مزامنة قنوات النظام بنجاح!"
+                            )
+                        }.onFailure { err ->
+                            onShowNotification("فشل المزامنة: ${err.message}")
                         }
                     }
-                    Icon(Icons.Default.KeyboardArrowLeft, contentDescription = null, tint = DasturTheme.TextMuted, modifier = Modifier.size(16.dp))
-                }
-            }
+                },
+                trailingContent = if (isLoading) {
+                    { CircularProgressIndicator(color = DasturTheme.PrimaryRed, modifier = Modifier.size(16.dp), strokeWidth = 2.dp) }
+                } else null
+            )
 
-            // 4. Favorites count display card
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp),
-                colors = CardDefaults.cardColors(containerColor = DasturTheme.SurfaceDark),
-                shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, DasturTheme.BorderSoft)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Favorite, contentDescription = null, tint = DasturTheme.AccentAmber, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text("قنواتي المفضلة", color = DasturTheme.TextMain, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            Text("تم تسجيل $favoritesCount قناة مفلتة ومفضلة", color = DasturTheme.TextMuted, fontSize = 10.sp)
-                        }
-                    }
-                    Icon(Icons.Default.Check, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(16.dp))
-                }
-            }
+            // 2. Source Management setup
+            PremiumMenuOptionCard(
+                title = "إدارة تقسيم مصادر القنوات",
+                subtitle = "أختر طريقة عرض القنوات وتصفية باقات المطور وقناتك",
+                icon = Icons.AutoMirrored.Rounded.List,
+                iconColor = DasturTheme.PrimaryRed,
+                onClick = { activeSubPage = "sources" }
+            )
 
-            // 5. Privacy Policy Card
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp)
-                    .clickable { activeSubPage = "privacy" },
-                colors = CardDefaults.cardColors(containerColor = DasturTheme.SurfaceDark),
-                shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, DasturTheme.BorderSoft)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Lock, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text("سياسة الخصوصية والأمان", color = DasturTheme.TextMain, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            Text("اتفاقية السرية والأمان وحفظ بيانات باقات قنواتك محلياً", color = DasturTheme.TextMuted, fontSize = 10.sp)
-                        }
-                    }
-                    Icon(Icons.Default.KeyboardArrowLeft, contentDescription = null, tint = DasturTheme.TextMuted, modifier = Modifier.size(16.dp))
-                }
-            }
+            // 3. Custom M3U / IPTV connection
+            PremiumMenuOptionCard(
+                title = "إضافة خادم IPTV أو ملف M3U خارجي",
+                subtitle = "أدمج باقات اشتراكاتك الخاصة مباشرة في مشغل DSTWR",
+                icon = Icons.Rounded.Build,
+                iconColor = DasturTheme.AccentAmber,
+                onClick = { activeSubPage = "server" }
+            )
 
-            // 6. About App Info Card
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp)
-                    .clickable { activeSubPage = "about" },
-                colors = CardDefaults.cardColors(containerColor = DasturTheme.SurfaceDark),
-                shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, DasturTheme.BorderSoft)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Info, contentDescription = null, tint = DasturTheme.PrimaryRed, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text("عن تطبيق DSTWR TV", color = DasturTheme.TextMain, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            Text("تاريخ الإصدار ومعلومات ملكية وتشغيل المنصة سينمائياً", color = DasturTheme.TextMuted, fontSize = 10.sp)
-                        }
-                    }
-                    Icon(Icons.Default.KeyboardArrowLeft, contentDescription = null, tint = DasturTheme.TextMuted, modifier = Modifier.size(16.dp))
-                }
-            }
+            Spacer(modifier = Modifier.height(16.dp))
+            Text("سينما وعرض وخصوصية المنصة", color = DasturTheme.TextMain, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 6.dp))
 
-            // 7. Family Safety Mode status
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp),
-                colors = CardDefaults.cardColors(containerColor = DasturTheme.SurfaceDark),
-                shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, DasturTheme.BorderSoft)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Star, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text("حاجز الحماية والتصفية النشط", color = DasturTheme.TextMain, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            Text("مصفي المحتوى العام والصارم للعائلات مفعَّل بالكامل", color = DasturTheme.TextMuted, fontSize = 10.sp)
-                        }
-                    }
-                    Icon(Icons.Default.Check, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(16.dp))
+            // 4. Cinema visualizer and decoder
+            PremiumMenuOptionCard(
+                title = "خيارات العرض والسينما الفخمة",
+                subtitle = "التحكم في فك الترميز، الإضاءة المحيطية التفاعلية والأبعاد",
+                icon = Icons.Rounded.PlayArrow,
+                iconColor = Color(0xFF3B82F6),
+                onClick = { activeSubPage = "quality" }
+            )
+
+            // 5. Privacy Policy
+            PremiumMenuOptionCard(
+                title = "مدرع الأمن وسياسة الخصوصية",
+                subtitle = "اتفاقية الحماية الكاملة للمشاهد والبيانات المحلية",
+                icon = Icons.Rounded.Lock,
+                iconColor = Color(0xFF10B981),
+                onClick = { activeSubPage = "privacy" }
+            )
+
+            // 6. About App developer specifications
+            PremiumMenuOptionCard(
+                title = "عن تطبيق DSTWR TV الفخم",
+                subtitle = "شروط تشغيل النظام والملكية الفكرية للأشخاص المحترفين",
+                icon = Icons.Rounded.Info,
+                iconColor = DasturTheme.PrimaryRed,
+                onClick = { activeSubPage = "about" }
+            )
+
+            // 7. Family Protection Mode (Static Indicator Card)
+            PremiumMenuOptionCard(
+                title = "نظام الحاجز العائلي وتصفية الأمن للأسرة",
+                subtitle = "جميع المحتويات مراقبة لبيئة عائلية آمنة خالية من المحتوى الهابط",
+                icon = Icons.Rounded.Star,
+                iconColor = Color(0xFF10B981),
+                onClick = {}, // Active block static details
+                trailingContent = {
+                    Icon(
+                        imageVector = Icons.Rounded.Check,
+                        contentDescription = "Active Guard Protection",
+                        tint = Color(0xFF10B981),
+                        modifier = Modifier.size(16.dp)
+                    )
                 }
-            }
+            )
         }
+        Spacer(modifier = Modifier.height(115.dp))
     }
 }
 
@@ -2082,63 +2896,87 @@ fun DasturBottomNavigation(
     currentTab: String,
     onTabSelected: (String) -> Unit
 ) {
-    Surface(
-        color = Color(0xC512121D),
-        shape = RoundedCornerShape(24.dp),
-        border = BorderStroke(1.2.dp, Brush.linearGradient(listOf(Color(0x22FFFFFF), Color(0x06FFFFFF)))),
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 10.dp)
-            .navigationBarsPadding()
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .navigationBarsPadding(),
+        contentAlignment = Alignment.Center
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceAround,
-            verticalAlignment = Alignment.CenterVertically
+        Surface(
+            color = Color(0x730A0515), // Elegant dark glass base with deep premium violet tint (45% opacity)
+            shape = RoundedCornerShape(22.dp),
+            border = BorderStroke(
+                width = 1.dp,
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0x52FFFFFF), // Shiny top bevel reflection
+                        Color(0x06FFFFFF)  // Fades down to keep bottom border perfectly clean & glassmorphic
+                    )
+                )
+            ),
+            modifier = Modifier.fillMaxWidth()
         ) {
-            val tabs = listOf(
-                Triple("home", "الرئيسية", Icons.Default.Home),
-                Triple("channels", "القنوات", Icons.Default.PlayArrow),
-                Triple("bouquets", "الباقات", Icons.Default.Menu),
-                Triple("favorites", "المفضلة", Icons.Default.Favorite),
-                Triple("settings", "الإعدادات", Icons.Default.Settings)
-            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Color(0x1EFFFFFF), // Glass gloss sheen overlay
+                                Color(0x02FFFFFF)
+                            )
+                        )
+                    )
+                    .padding(vertical = 8.dp, horizontal = 6.dp),
+                horizontalArrangement = Arrangement.SpaceAround,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                val tabs = listOf(
+                    Triple("home", "الرئيسية", Icons.Rounded.Home),
+                    Triple("channels", "القنوات", Icons.Rounded.PlayArrow),
+                    Triple("bouquets", "الباقات", Icons.Rounded.Menu),
+                    Triple("favorites", "المفضلة", Icons.Rounded.FavoriteBorder),
+                    Triple("settings", "الإعدادات", Icons.Rounded.Settings)
+                )
 
-            tabs.forEach { (tabId, label, icon) ->
-                val isActive = currentTab == tabId
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(if (isActive) DasturTheme.PrimaryRed.copy(alpha = 0.12f) else Color.Transparent)
-                        .border(
-                            BorderStroke(
-                                1.dp,
-                                if (isActive) DasturTheme.PrimaryRed.copy(alpha = 0.25f) else Color.Transparent
-                            ),
-                            RoundedCornerShape(14.dp)
-                        )
-                        .clickable { onTabSelected(tabId) }
-                        .padding(horizontal = 14.dp, vertical = 6.dp)
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
+                tabs.forEach { (tabId, label, icon) ->
+                    val isActive = currentTab == tabId
+                    val activeIcon = if (tabId == "favorites" && isActive) Icons.Rounded.Favorite else icon
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(if (isActive) DasturTheme.PrimaryRed.copy(alpha = 0.16f) else Color.Transparent)
+                            .border(
+                                BorderStroke(
+                                    1.dp,
+                                    if (isActive) DasturTheme.PrimaryRed.copy(alpha = 0.35f) else Color.Transparent
+                                ),
+                                RoundedCornerShape(16.dp)
+                            )
+                            .clickable { onTabSelected(tabId) }
+                            .padding(horizontal = 12.dp, vertical = 7.dp)
                     ) {
-                        Icon(
-                            imageVector = icon,
-                            contentDescription = label,
-                            tint = if (isActive) DasturTheme.PrimaryRed else DasturTheme.TextMuted,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = label,
-                            color = if (isActive) Color.White else DasturTheme.TextMuted,
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                imageVector = activeIcon,
+                                contentDescription = label,
+                                tint = if (isActive) DasturTheme.PrimaryRed else DasturTheme.TextMuted,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            if (isActive) {
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = label,
+                                    color = Color.White,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
                     }
                 }
             }

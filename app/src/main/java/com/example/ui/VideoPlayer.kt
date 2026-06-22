@@ -141,48 +141,53 @@ fun VideoPlayer(
 
     // Use remember to keep the same player instance across recompositions
     val exoPlayer = remember(context) {
-        try {
-            val fallbackContext = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                context.createAttributionContext("media")
-            } else {
-                context
-            }
+        val buildExoPlayer: (Context) -> ExoPlayer = { ctx ->
             val httpDataSourceFactory = DefaultHttpDataSource.Factory()
                 .setUserAgent("IPTVSmarters/1.0.0")
                 .setAllowCrossProtocolRedirects(true)
+                .setConnectTimeoutMs(8000) // Safe connection timeout to prevent hanging locks
+                .setReadTimeoutMs(10000)   // Safe read timeout to protect emulator/app threads!
                 .setDefaultRequestProperties(mapOf(
                     "Referer" to "http://12k-service.org/",
                     "User-Agent" to "IPTVSmarters/1.0.0"
                 ))
             
-            val mediaSourceFactory = DefaultMediaSourceFactory(fallbackContext)
+            val mediaSourceFactory = DefaultMediaSourceFactory(ctx)
                 .setDataSourceFactory(httpDataSourceFactory)
 
             // Smart Load Control to prevent network drain and bloat while keeping stream ultra-live
             val loadControl = DefaultLoadControl.Builder()
                 .setBufferDurationsMs(
-                    10000,   // Min buffer (10s) to keep it light
-                    30000,   // Max buffer (30s) prevents unneeded network draining
-                    1000,    // Buffer for playback to start quickly
-                    1500     // Buffer after rebuffer
+                    15000,   // Min buffer (15s) to avoid interruptions
+                    50000,   // Max buffer (50s) to absorb network spikes
+                    500,     // Buffer for playback to start very quickly (0.5s)
+                    2000     // Buffer after rebuffer to recover smoothly
                 )
                 .build()
 
-            ExoPlayer.Builder(fallbackContext)
+            ExoPlayer.Builder(ctx)
                 .setMediaSourceFactory(mediaSourceFactory)
                 .setLoadControl(loadControl)
                 .build().apply {
                     repeatMode = Player.REPEAT_MODE_OFF
                 }
+        }
+
+        try {
+            val fallbackContext = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                try {
+                    context.createAttributionContext("media")
+                } catch (ce: Exception) {
+                    context
+                }
+            } else {
+                context
+            }
+            buildExoPlayer(fallbackContext)
         } catch (e: Exception) {
             e.printStackTrace()
             try {
-                val fallbackContextCatch = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    context.createAttributionContext("media")
-                } else {
-                    context
-                }
-                ExoPlayer.Builder(fallbackContextCatch).build()
+                buildExoPlayer(context)
             } catch (inner: Exception) {
                 inner.printStackTrace()
                 null
@@ -356,6 +361,7 @@ fun VideoPlayer(
                             // Disable standard ExoPlayer black bar controllers to draw our stunning premium Jetpack Compose overlay
                             useController = false
                             layoutParams = FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT)
+                            keepScreenOn = true
                         }
                     } catch (e: Exception) {
                         e.printStackTrace()
@@ -608,12 +614,6 @@ fun VideoPlayer(
                     }
                 }
             }
-        }
-    }
-    
-    DisposableEffect(exoPlayer) {
-        onDispose {
-            exoPlayer?.release()
         }
     }
 }
