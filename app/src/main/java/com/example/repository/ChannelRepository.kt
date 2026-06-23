@@ -95,47 +95,47 @@ class ChannelRepository(private val channelDao: ChannelDao) {
             // High priority Arabic Sports
             nameUpper.contains("SSC") -> {
                 if (isFrenchChannel(name)) {
-                    "باقة القنوات العالمية"
+                    "القنوات العالمية"
                 } else if (isArabicChannel(name, logo) || nameUpper.contains("AR") || nameUpper.contains("ARA") || !nameUpper.contains("FR")) {
-                    "باقة قنوات SSC الرياضية"
+                    "قنوات SSC الرياضية"
                 } else {
-                    "باقة القنوات العالمية"
+                    "القنوات العالمية"
                 }
             }
             nameUpper.contains("BEIN") && (nameUpper.contains("SPORTS") || nameUpper.contains("SP") || nameUpper.contains("SPORT")) -> {
                 if (isFrenchChannel(name)) {
-                    "باقة القنوات العالمية"
+                    "القنوات العالمية"
                 } else if (isArabicChannel(name, logo) || nameUpper.contains("AR") || nameUpper.contains("ARA") || !nameUpper.contains("FR")) {
-                    "باقة قنوات beIN Sports العربية"
+                    "قنوات beIN Sports العربية"
                 } else {
-                    "باقة القنوات العالمية"
+                    "القنوات العالمية"
                 }
             }
-            nameUpper.contains("AD SPORT") || nameUpper.contains("AD_SPORT") || nameUpper.contains("AD SPORTS") -> "باقة قنوات أبوظبي الرياضية"
-            nameLower.contains("alkass") || nameLower.contains("الكس") || nameLower.contains("الكأس") -> "باقة قنوات الكأس الرياضية"
+            nameUpper.contains("AD SPORT") || nameUpper.contains("AD_SPORT") || nameUpper.contains("AD SPORTS") -> "قنوات أبوظبي الرياضية"
+            nameLower.contains("alkass") || nameLower.contains("الكس") || nameLower.contains("الكأس") -> "قنوات الكأس الرياضية"
             
             // VIP / Entertainment
-            nameLower.contains("shahid") || nameLower.contains("sh") && nameLower.contains("vip") -> "باقة VIP شاهد"
-            nameUpper.contains("OSN") -> "باقة قنوات OSN الترفيهية"
-            nameUpper.contains("NETFLIX") || nameUpper.contains("AFLAM") -> "باقة أفلام ومسلسلات نتفليكس"
+            nameLower.contains("shahid") || nameLower.contains("sh") && nameLower.contains("vip") -> "قنوات شاهد"
+            nameUpper.contains("OSN") -> "قنوات OSN الترفيهية"
+            nameUpper.contains("NETFLIX") || nameUpper.contains("AFLAM") -> "أفلام ومسلسلات مختارة"
             
             // Arabic network packages
-            nameUpper.contains("MBC") -> "باقة قنوات MBC الكاملة"
-            nameLower.contains("rotana") || nameLower.contains("روتانا") -> "باقة قنوات روتانا"
+            nameUpper.contains("MBC") -> "قنوات MBC"
+            nameLower.contains("rotana") || nameLower.contains("روتانا") -> "قنوات روتانا"
             
             // Kids / News / Documentary
-            nameLower.contains("spacetoon") || nameLower.contains("kids") || nameLower.contains("أطفال") || nameLower.contains("كرتون") -> "باقة قنوات الأطفال والكرتون"
-            nameLower.contains("news") || nameLower.contains("أخبار") || nameLower.contains("الجزيرة") || nameLower.contains("jazeera") || nameLower.contains("العربية") || nameLower.contains("arabiya") -> "باقة الأخبار والبرامج السياسية"
-            nameLower.contains("national") || nameLower.contains("nat geo") || nameLower.contains("وثائق") || nameLower.contains("doc") -> "باقة القنوات الوثائقية"
+            nameLower.contains("spacetoon") || nameLower.contains("kids") || nameLower.contains("أطفال") || nameLower.contains("كرتون") -> "قنوات الأطفال والكرتون"
+            nameLower.contains("news") || nameLower.contains("أخبار") || nameLower.contains("الجزيرة") || nameLower.contains("jazeera") || nameLower.contains("العربية") || nameLower.contains("arabiya") -> "قنوات الأخبار والسياسة"
+            nameLower.contains("national") || nameLower.contains("nat geo") || nameLower.contains("وثائق") || nameLower.contains("doc") -> "القنوات الوثائقية"
             
             // Generic Arabic Channels
-            isArabicChannel(name, logo) -> "باقة القنوات العربية العامة"
+            isArabicChannel(name, logo) -> "القنوات العربية العامة"
             
             // PPV Box / Events
-            nameUpper.contains("PPV") || nameUpper.contains("BOXING") || nameUpper.contains("EVENT") -> "باقة الأحداث الرياضية والبوكسينج"
+            nameUpper.contains("PPV") || nameUpper.contains("BOXING") || nameUpper.contains("EVENT") -> "الأحداث الرياضية المباشرة"
             
             // Others
-            else -> "باقة القنوات العالمية الأخرى"
+            else -> "القنوات العالمية"
         }
     }
 
@@ -201,93 +201,164 @@ class ChannelRepository(private val channelDao: ChannelDao) {
         allChannels
     }
 
+    private suspend fun fetchUrlWithRedirects(targetUrl: String): String = withContext(Dispatchers.IO) {
+        if (targetUrl.isBlank()) return@withContext ""
+        var currentUrl = targetUrl
+        var redirects = 0
+        val maxRedirects = 5
+        var resultBody = ""
+        
+        while (redirects < maxRedirects) {
+            val request = Request.Builder()
+                .url(currentUrl)
+                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+                .header("Accept", "*/*")
+                .build()
+                
+            client.newCall(request).execute().use { response ->
+                if (response.isRedirect || response.code in 300..399) {
+                    val location = response.header("Location")
+                    if (!location.isNullOrBlank()) {
+                        currentUrl = if (location.startsWith("http", ignoreCase = true)) {
+                            location
+                        } else {
+                            val baseUri = java.net.URI(currentUrl)
+                            baseUri.resolve(location).toString()
+                        }
+                        redirects++
+                        return@use // continue while loop
+                    }
+                }
+                
+                if (!response.isSuccessful) {
+                    throw Exception("IPTV Server response error: ${response.code}")
+                }
+                resultBody = response.body?.string() ?: ""
+                redirects = maxRedirects // exit loop
+            }
+        }
+        resultBody
+    }
+
+    private fun cleanCategory(category: String): String {
+        return category
+            .replace("باقة قنوات ", "")
+            .replace("باقة القنوات ", "")
+            .replace("قنوات ", "")
+            .replace("باقة ", "")
+            .replace("ال ال", " ال")
+            .replace("الال", "ال")
+            .replace("  ", " ")
+            .replace("VIP", "")
+            .trim()
+            .replace(Regex("^الال"), "ال")
+            .replace(Regex("^ال ال"), "ال")
+    }
+
     suspend fun syncChannels(context: Context, passedCustomUrl: String? = null): Result<Int> = withContext(Dispatchers.IO) {
+        val sharedPrefs = context.getSharedPreferences("dstwr_prefs", Context.MODE_PRIVATE)
         try {
-            val sharedPrefs = context.getSharedPreferences("dstwr_prefs", Context.MODE_PRIVATE)
-            
             // 1. If user explicitly updated the url via UI, save or clear it
             if (passedCustomUrl != null) {
-                if (passedCustomUrl.trim().isBlank()) {
+                val candidate = passedCustomUrl.trim()
+                if (candidate.isBlank()) {
                     sharedPrefs.edit().remove("custom_m3u_url").apply()
                 } else {
-                    sharedPrefs.edit().putString("custom_m3u_url", passedCustomUrl.trim()).apply()
+                    // Smart Xtream detection: if they enter a host without params, but we have username/pass in UI?
+                    // Actually, the UI already appends params if inputMode == "xtream".
+                    // But if they just paste a long URL, we save it as is.
+                    sharedPrefs.edit().putString("custom_m3u_url", candidate).apply()
                 }
             }
             
-            val activeCustomUrl = sharedPrefs.getString("custom_m3u_url", null)
+            val activeCustomUrl = sharedPrefs.getString("custom_m3u_url", null)?.takeIf { it.isNotBlank() }
             
             // 2. Fetch and decode official system curated list (decrypt default channels)
-            val request = Request.Builder()
-                .url("https://raw.githubusercontent.com/mogahdbshar/app-core-assets/refs/heads/main/system_config.dat")
-                .header("User-Agent", "IPTVSmarters/1.0.0")
-                .build()
-
-            val systemChannels = client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) {
-                    throw Exception("System source connection error: ${response.code}")
+            var systemChannels = emptyList<Channel>()
+            try {
+                val officialUrl = "https://raw.githubusercontent.com/mogahdbshar/app-core-assets/refs/heads/main/system_config.dat"
+                val bodyString = fetchUrlWithRedirects(officialUrl)
+                if (bodyString.isNotBlank()) {
+                    val decryptedJson = CryptoHelper.decrypt(bodyString.trim()) ?: throw Exception("decryption failed")
+                    val rawList = adapter.fromJson(decryptedJson) ?: emptyList()
+                    
+                    systemChannels = rawList.filter { isFamilyFriendly(it) }
+                        .map { channel ->
+                            val cleanName = channel.name.trim()
+                            channel.copy(
+                                name = cleanName,
+                                category = cleanCategory(determinePackage(cleanName, channel.logo))
+                            )
+                        }
                 }
-                val bodyString = response.body?.string() ?: throw Exception("System configurations are empty")
-                val decryptedJson = CryptoHelper.decrypt(bodyString.trim()) ?: throw Exception("System configuration decryption failed")
-                val rawList = adapter.fromJson(decryptedJson) ?: emptyList()
-                
-                rawList.filter { isFamilyFriendly(it) }
-                    .map { channel ->
-                        val cleanName = channel.name.trim()
-                        channel.copy(
-                            name = cleanName,
-                            category = determinePackage(cleanName, channel.logo)
-                        )
-                    }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                // If official configurations fails (offline or blocked), fallback to local high-fidelity list
+                systemChannels = fallbackChannels
             }
 
             // 3. Fetch and parse custom M3U/M3U8 playlist from activeCustomUrl if active
             val customChannels = mutableListOf<Channel>()
             if (!activeCustomUrl.isNullOrBlank()) {
                 try {
-                    val customRequest = Request.Builder()
-                        .url(activeCustomUrl)
-                        .header("User-Agent", "IPTVSmarters/1.0.0")
-                        .build()
+                    val body = fetchUrlWithRedirects(activeCustomUrl)
+                    if (body.isNotBlank()) {
+                        val lines = body.split("\n")
+                        var currentName = ""
+                        var currentLogo = ""
+                        var currentGroup = "باقة القنوات المضافة"
                         
-                    client.newCall(customRequest).execute().use { response ->
-                        if (!response.isSuccessful) {
-                            throw Exception("Custom M3U connection error: ${response.code}")
-                        }
-                        val body = response.body?.string() ?: ""
-                        if (body.isNotBlank()) {
-                            val lines = body.split("\n")
-                            var currentName = ""
-                            var currentLogo = ""
-                            var currentGroup = "باقة القنوات المضافة"
-                            for (line in lines) {
-                                val trimmedLine = line.trim()
-                                if (trimmedLine.startsWith("#EXTINF:")) {
-                                    val nameMatch = Regex(",(.*)").find(trimmedLine)
-                                    currentName = nameMatch?.groupValues?.get(1)?.trim() ?: "قناة مخصصة"
-                                    
-                                    val logoMatch = Regex("tvg-logo=\"([^\"]+)\"").find(trimmedLine)
-                                    currentLogo = logoMatch?.groupValues?.get(1) ?: ""
-
-                                    val groupMatch = Regex("group-title=\"([^\"]+)\"").find(trimmedLine)
-                                    currentGroup = groupMatch?.groupValues?.get(1) ?: "باقة القنوات المضافة"
-                                } else if (trimmedLine.startsWith("http")) {
-                                    val ch = Channel(
-                                        name = currentName,
-                                        url = trimmedLine,
-                                        logo = currentLogo,
-                                        category = currentGroup
-                                    )
-                                    if (isFamilyFriendly(ch)) {
-                                        customChannels.add(ch)
-                                    }
+                        for (line in lines) {
+                            val trimmedLine = line.trim().replace("\r", "")
+                            if (trimmedLine.isEmpty()) continue
+                            
+                            if (trimmedLine.startsWith("#EXTINF:", ignoreCase = true)) {
+                                val lastCommaIndex = trimmedLine.lastIndexOf(',')
+                                currentName = if (lastCommaIndex != -1 && lastCommaIndex < trimmedLine.length - 1) {
+                                    trimmedLine.substring(lastCommaIndex + 1).trim()
+                                } else {
+                                    ""
                                 }
+                                
+                                val logoRegex = Regex("""tvg-logo=["']([^"']+)["']""", RegexOption.IGNORE_CASE)
+                                currentLogo = logoRegex.find(trimmedLine)?.groupValues?.get(1) ?: ""
+                                
+                                val groupRegex = Regex("""group-title=["']([^"']+)["']""", RegexOption.IGNORE_CASE)
+                                currentGroup = groupRegex.find(trimmedLine)?.groupValues?.get(1) ?: "باقة القنوات المضافة"
+                            } else if (trimmedLine.startsWith("http", ignoreCase = true)) {
+                                val finalUrl = trimmedLine
+                                val finalName = if (currentName.isBlank()) {
+                                    val lastSlash = finalUrl.lastIndexOf('/')
+                                    if (lastSlash != -1 && lastSlash < finalUrl.length - 1) {
+                                        finalUrl.substring(lastSlash + 1).removeSuffix(".ts").removeSuffix(".m3u8").trim()
+                                    } else {
+                                        "قناة مخصصة غير مسمية"
+                                    }
+                                } else {
+                                    currentName
+                                }
+                                
+                                val ch = Channel(
+                                    name = finalName,
+                                    url = finalUrl,
+                                    logo = currentLogo.ifBlank { "" },
+                                    category = cleanCategory(currentGroup.ifBlank { "القنوات المضافة" })
+                                )
+                                if (isFamilyFriendly(ch)) {
+                                    customChannels.add(ch)
+                                }
+                                
+                                // Reset metadata for next channel parse
+                                currentName = ""
+                                currentLogo = ""
+                                currentGroup = "باقة القنوات المضافة"
                             }
                         }
                     }
                 } catch (e: Exception) {
-                    // Re-throw so user gets the accurate error message on button click
+                    val errMsg = e.localizedMessage ?: "فشل قراءة الملف"
                     if (passedCustomUrl != null) {
-                        throw Exception("فشل في قراءة الرابط المخصص: ${e.localizedMessage}")
+                        throw Exception("فشل في قراءة الرابط المخصص: $errMsg")
                     }
                     e.printStackTrace()
                 }
@@ -330,10 +401,9 @@ class ChannelRepository(private val channelDao: ChannelDao) {
                 else -> e.localizedMessage ?: "حدث خطأ غير معروف."
             }
             
-            // If completely empty DB, load local system fallbacks
+            // Safe fallback logic - if DB is empty, fill with fallbacks
             val currentCount = channelDao.getChannelsCount()
             if (currentCount == 0) {
-                val sharedPrefs = context.getSharedPreferences("dstwr_prefs", Context.MODE_PRIVATE)
                 val sourceMode = sharedPrefs.getString("source_mode", "merged") ?: "merged"
                 val showDevPackage = sharedPrefs.getBoolean("show_dev_package", true)
                 

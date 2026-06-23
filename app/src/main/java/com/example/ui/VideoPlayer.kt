@@ -1,10 +1,12 @@
 package com.example.ui
 
+import com.example.ui.components.DasturTheme
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.widget.FrameLayout
 import android.os.Build
 import androidx.annotation.OptIn
 import androidx.compose.animation.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -14,6 +16,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -23,6 +26,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -44,6 +48,12 @@ import android.content.pm.ActivityInfo
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
+
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.media3.ui.AspectRatioFrameLayout
+import android.provider.Settings
+import kotlin.math.abs
 
 fun Context.findActivity(): Activity? {
     var context = this
@@ -122,6 +132,7 @@ fun CustomMuteIcon(tint: Color = Color.White) {
 @Composable
 fun VideoPlayer(
     url: String, 
+    channelName: String = "",
     isFullscreen: Boolean,
     onFullscreenToggle: () -> Unit,
     onClose: () -> Unit,
@@ -138,6 +149,23 @@ fun VideoPlayer(
     var showControls by remember { mutableStateOf(false) }
     var videoResolution by remember { mutableStateOf("تلقائي") }
     var stopJob by remember { mutableStateOf<Job?>(null) }
+    
+    // New states for enhanced features
+    var resizeMode by remember { mutableIntStateOf(AspectRatioFrameLayout.RESIZE_MODE_FIT) }
+    var volumeLevel by remember { mutableFloatStateOf(1f) }
+    var brightnessLevel by remember { mutableFloatStateOf(0.5f) }
+    var gestureType by remember { mutableStateOf<String?>(null) } // "volume" or "brightness"
+    var gestureValue by remember { mutableFloatStateOf(0f) }
+    var showGestureOverlay by remember { mutableStateOf(false) }
+    var gestureHideJob by remember { mutableStateOf<Job?>(null) }
+
+    // Initialize brightness on startup if possible
+    LaunchedEffect(Unit) {
+        val activity = context.findActivity()
+        activity?.window?.attributes?.let {
+            brightnessLevel = if (it.screenBrightness < 0) 0.5f else it.screenBrightness
+        }
+    }
 
     // Use remember to keep the same player instance across recompositions
     val exoPlayer = remember(context) {
@@ -342,8 +370,44 @@ fun VideoPlayer(
                 .background(Color.Black)
         } else {
             modifier
-                .background(Color.Black)
-                .clip(RoundedCornerShape(12.dp))
+                .background(Brush.verticalGradient(listOf(Color(0xFF1A1A1A), Color.Black)))
+                .clip(RoundedCornerShape(20.dp))
+                .border(BorderStroke(1.2.dp, DasturTheme.BorderSoft), RoundedCornerShape(20.dp))
+        }.pointerInput(Unit) {
+            detectVerticalDragGestures(
+                onDragStart = { offset ->
+                    val isLeftSide = offset.x < size.width / 2
+                    gestureType = if (isLeftSide) "brightness" else "volume"
+                    showGestureOverlay = true
+                    gestureHideJob?.cancel()
+                },
+                onDragEnd = {
+                    gestureHideJob = coroutineScope.launch {
+                        delay(1000)
+                        showGestureOverlay = false
+                        gestureType = null
+                    }
+                },
+                onVerticalDrag = { change, dragAmount ->
+                    change.consume()
+                    val sensitivity = 0.002f
+                    if (gestureType == "volume") {
+                        volumeLevel = (volumeLevel - dragAmount * sensitivity).coerceIn(0f, 1f)
+                        exoPlayer?.volume = volumeLevel
+                        isMuted = volumeLevel == 0f
+                        gestureValue = volumeLevel
+                    } else if (gestureType == "brightness") {
+                        brightnessLevel = (brightnessLevel - dragAmount * sensitivity).coerceIn(0f, 1f)
+                        val activity = context.findActivity()
+                        activity?.let {
+                            val lp = it.window.attributes
+                            lp.screenBrightness = brightnessLevel
+                            it.window.attributes = lp
+                        }
+                        gestureValue = brightnessLevel
+                    }
+                }
+            )
         }.clickable(
             interactionSource = remember { MutableInteractionSource() },
             indication = null
@@ -366,6 +430,11 @@ fun VideoPlayer(
                     } catch (e: Exception) {
                         e.printStackTrace()
                         FrameLayout(ctx)
+                    }
+                },
+                update = { view ->
+                    if (view is PlayerView) {
+                        view.resizeMode = resizeMode
                     }
                 },
                 modifier = Modifier.fillMaxSize()
@@ -400,13 +469,33 @@ fun VideoPlayer(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Modern LIVE Pulse badge
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
+                    IconButton(
+                        onClick = onClose,
                         modifier = Modifier
-                            .background(Color(0xFFFF4500).copy(alpha = 0.85f), RoundedCornerShape(20.dp))
-                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                            .background(Color.Black.copy(alpha = 0.4f), CircleShape)
+                            .size(36.dp)
                     ) {
+                        Icon(Icons.Default.Close, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                    }
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (channelName.isNotBlank()) {
+                            Text(
+                                text = channelName,
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(end = 12.dp)
+                            )
+                        }
+                        
+                        // Modern LIVE Pulse badge
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .background(Color(0xFFFF4500).copy(alpha = 0.9f), RoundedCornerShape(4.dp))
+                                .padding(horizontal = 8.dp, vertical = 2.dp)
+                        ) {
                         Box(
                             modifier = Modifier
                                 .size(6.dp)
@@ -420,8 +509,9 @@ fun VideoPlayer(
                             style = MaterialTheme.typography.labelSmall
                         )
                     }
+                }
 
-                    // Quality Badge
+                // Quality Badge
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = videoResolution,
@@ -527,13 +617,34 @@ fun VideoPlayer(
                             onClick = onFullscreenToggle,
                             modifier = Modifier
                                 .size(34.dp)
+                                .background(Color.White.copy(alpha = 0.15f), CircleShape)
+                        ) {
+                            Icon(
+                                imageVector = if (isFullscreen) Icons.Rounded.FullscreenExit else Icons.Rounded.Fullscreen,
+                                contentDescription = "Fullscreen",
+                                tint = Color.White,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+
+                        // Aspect Ratio Toggle
+                        IconButton(
+                            onClick = {
+                                resizeMode = when (resizeMode) {
+                                    AspectRatioFrameLayout.RESIZE_MODE_FIT -> AspectRatioFrameLayout.RESIZE_MODE_FILL
+                                    AspectRatioFrameLayout.RESIZE_MODE_FILL -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                                    else -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+                                }
+                            },
+                            modifier = Modifier
+                                .size(34.dp)
                                 .background(Color.White.copy(alpha = 0.1f), CircleShape)
                         ) {
                             Icon(
-                                imageVector = if (isFullscreen) Icons.Default.Close else Icons.AutoMirrored.Filled.List, // Assuming no Fullscreen icon in Default
-                                contentDescription = "Fullscreen",
+                                imageVector = Icons.Rounded.AspectRatio,
+                                contentDescription = "Aspect Ratio",
                                 tint = Color.White,
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size(18.dp)
                             )
                         }
                     }
@@ -544,6 +655,53 @@ fun VideoPlayer(
                         fontSize = 9.sp,
                         style = MaterialTheme.typography.bodySmall
                     )
+                }
+            }
+        }
+
+        
+        // Gesture Overlay Indicators
+        AnimatedVisibility(
+            visible = showGestureOverlay,
+            enter = fadeIn(),
+            exit = fadeOut()
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(32.dp),
+                contentAlignment = if (gestureType == "brightness") Alignment.CenterStart else Alignment.CenterEnd
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier
+                        .width(45.dp)
+                        .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(22.dp))
+                        .padding(vertical = 16.dp, horizontal = 4.dp)
+                ) {
+                    Icon(
+                        imageVector = if (gestureType == "brightness") Icons.Rounded.WbSunny else {
+                            if (gestureValue == 0f) Icons.Rounded.VolumeOff else if (gestureValue < 0.5f) Icons.Rounded.VolumeDown else Icons.Rounded.VolumeUp
+                        },
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Box(
+                        modifier = Modifier
+                            .width(4.dp)
+                            .height(120.dp)
+                            .background(Color.White.copy(alpha = 0.2f), RoundedCornerShape(2.dp)),
+                        contentAlignment = Alignment.BottomCenter
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .fillMaxHeight(gestureValue)
+                                .background(DasturTheme.PrimaryRed, RoundedCornerShape(2.dp))
+                        )
+                    }
                 }
             }
         }

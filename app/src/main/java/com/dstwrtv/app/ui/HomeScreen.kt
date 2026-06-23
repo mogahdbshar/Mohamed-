@@ -1,4 +1,4 @@
-package com.example.ui
+package com.dstwrtv.app.ui
 
 import android.graphics.drawable.BitmapDrawable
 import androidx.compose.animation.*
@@ -30,13 +30,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.ui.components.*
-import com.example.ui.home.HomeView
-import com.example.ui.channels.ChannelsView
-import com.example.ui.channels.BouquetsView
-import com.example.ui.favorites.FavoritesView
-import com.example.ui.settings.SettingsView
-import com.example.viewmodel.MainViewModel
+import com.dstwrtv.app.ui.components.*
+import com.dstwrtv.app.ui.home.HomeView
+import com.dstwrtv.app.ui.channels.ChannelsView
+import com.dstwrtv.app.ui.channels.BouquetsView
+import com.dstwrtv.app.ui.favorites.FavoritesView
+import com.dstwrtv.app.ui.settings.SettingsView
+import com.dstwrtv.app.viewmodel.MainViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -76,7 +76,7 @@ fun HomeScreen(viewModel: MainViewModel) {
     LaunchedEffect(Unit) {
         delay(2400)
         showSplash = false
-        if (!com.example.util.NetworkUtils.isInternetAvailable(context)) {
+        if (!com.dstwrtv.app.util.NetworkUtils.isInternetAvailable(context)) {
             snackbarHostState.showSnackbar(
                 message = "لا يوجد اتصال بالإنترنت. يتم تصفح البث من الذاكرة المحلية والاحتياطية",
                 duration = SnackbarDuration.Short

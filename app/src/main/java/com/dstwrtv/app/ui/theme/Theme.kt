@@ -1,4 +1,4 @@
-package com.example.ui.theme
+package com.dstwrtv.app.ui.theme
 
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
