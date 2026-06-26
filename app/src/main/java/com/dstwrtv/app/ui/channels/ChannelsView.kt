@@ -12,8 +12,8 @@ import com.dstwrtv.app.model.Channel
 import com.dstwrtv.app.ui.channels.components.CategoryFilterRow
 import com.dstwrtv.app.ui.channels.components.ChannelList
 import com.dstwrtv.app.ui.channels.components.cleanBouquetName
-import com.dstwrtv.app.ui.components.DasturTheme
-import com.dstwrtv.app.ui.components.DasturSearchBar
+import com.dstwrtv.app.ui.components.DSTWRTheme
+import com.dstwrtv.app.ui.components.DSTWRSearchBar
 
 @Composable
 fun ChannelsView(
@@ -50,12 +50,12 @@ fun ChannelsView(
         if (searchQuery.isBlank()) {
             categoryFiltered
         } else {
-            val norm = com.dstwrtv.app.util.ArabicUtils.normalize(searchQuery)
+            val norm = com.dstwrtv.app.core.util.ArabicUtils.normalize(searchQuery)
             val terms = norm.split(" ").filter { it.isNotBlank() }
             
             categoryFiltered.filter { ch ->
-                val targetName = com.dstwrtv.app.util.ArabicUtils.normalize(ch.name)
-                val targetCat = com.dstwrtv.app.util.ArabicUtils.normalize(ch.category)
+                val targetName = com.dstwrtv.app.core.util.ArabicUtils.normalize(ch.name)
+                val targetCat = com.dstwrtv.app.core.util.ArabicUtils.normalize(ch.category)
                 terms.all { targetName.contains(it) || targetCat.contains(it) }
             }
         }
@@ -70,8 +70,8 @@ fun ChannelsView(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column {
-                Text("قنوات البث المباشر", color = DasturTheme.TextMain, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                Text("${currentFiltered.size} قناة متاحة", color = DasturTheme.TextMuted, fontSize = 11.sp)
+                Text("قنوات البث المباشر", color = DSTWRTheme.TextMain, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text("${currentFiltered.size} قناة متاحة", color = DSTWRTheme.TextMuted, fontSize = 11.sp)
             }
         }
 
@@ -83,7 +83,7 @@ fun ChannelsView(
             onFilterSelect = { activeFilterId = it }
         )
 
-        DasturSearchBar(searchQuery = searchQuery, onSearchChange = onSearchChange)
+        DSTWRSearchBar(searchQuery = searchQuery, onSearchChange = onSearchChange)
 
         Spacer(modifier = Modifier.height(10.dp))
 

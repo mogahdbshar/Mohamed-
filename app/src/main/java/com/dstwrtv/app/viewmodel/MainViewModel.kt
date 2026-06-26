@@ -10,13 +10,26 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
+sealed interface SyncUiState {
+    object Idle : SyncUiState
+    object Loading : SyncUiState
+    data class Success(val channelsCount: Int) : SyncUiState
+    data class Error(val message: String) : SyncUiState
+}
+
 class MainViewModel(private val app: Application, private val repository: ChannelRepository) : ViewModel() {
 
-    private val _isLoading = MutableStateFlow(false)
-    val isLoading: StateFlow<Boolean> = _isLoading
+    private val _syncState = MutableStateFlow<SyncUiState>(SyncUiState.Idle)
+    val syncState: StateFlow<SyncUiState> = _syncState
 
-    private val _syncError = MutableStateFlow<String?>(null)
-    val syncError: StateFlow<String?> = _syncError
+    // Keep backwards compatibility for Composable UI screens reading isLoading & syncError
+    val isLoading: StateFlow<Boolean> = _syncState
+        .map { it is SyncUiState.Loading }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    val syncError: StateFlow<String?> = _syncState
+        .map { (it as? SyncUiState.Error)?.message }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery
@@ -58,25 +71,28 @@ class MainViewModel(private val app: Application, private val repository: Channe
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     init {
-        syncFromNetwork()
+        viewModelScope.launch {
+            val count = repository.getChannelsCount()
+            if (count == 0) {
+                syncFromNetwork()
+            }
+        }
     }
 
     fun syncFromNetwork(customUrl: String? = null, onResult: ((Result<Int>) -> Unit)? = null) {
         viewModelScope.launch {
-            _isLoading.value = true
-            _syncError.value = null
+            _syncState.value = SyncUiState.Loading
             
-            val result = repository.syncChannels(app, customUrl)
+            val result = repository.syncChannels(customUrl)
             result.onSuccess { loadedCount ->
+                _syncState.value = SyncUiState.Success(loadedCount)
                 onResult?.invoke(Result.success(loadedCount))
             }
             result.onFailure { error ->
                 val errMsg = error.localizedMessage ?: "حدث خطأ غير معروف أثناء تحميل القنوات"
-                _syncError.value = errMsg
+                _syncState.value = SyncUiState.Error(errMsg)
                 onResult?.invoke(Result.failure(Exception(errMsg)))
             }
-            
-            _isLoading.value = false
         }
     }
 

@@ -23,7 +23,7 @@ private val DarkColorScheme =
 @Composable
 fun MyApplicationTheme(
   darkTheme: Boolean = true, // Force dark theme by defaultfor a premium cinema feel
-  dynamicColor: Boolean = true,
+  dynamicColor: Boolean = false,
   content: @Composable () -> Unit,
 ) {
   val colorScheme =

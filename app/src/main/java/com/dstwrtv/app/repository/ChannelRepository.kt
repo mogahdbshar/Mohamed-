@@ -1,33 +1,38 @@
 package com.dstwrtv.app.repository
 
-import android.content.Context
+import com.dstwrtv.app.core.cache.AppCache
+import com.dstwrtv.app.core.network.NetworkClient
+import com.dstwrtv.app.core.settings.SettingsManager
 import com.dstwrtv.app.db.ChannelDao
 import com.dstwrtv.app.model.Channel
-import com.dstwrtv.app.util.CryptoHelper
+import com.dstwrtv.app.core.util.CryptoHelper
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.Types
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
-import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.util.Locale
-import java.util.concurrent.TimeUnit
 
-class ChannelRepository(private val channelDao: ChannelDao) {
+class ChannelRepository(
+    private val channelDao: ChannelDao,
+    private val settingsManager: SettingsManager
+) {
 
     val allChannels: Flow<List<Channel>> = channelDao.getAllChannelsFlow()
     val favoriteChannels: Flow<List<Channel>> = channelDao.getFavoritesFlow()
 
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .build()
+    suspend fun getChannelsCount(): Int {
+        return withContext(Dispatchers.IO) {
+            channelDao.getChannelsCount()
+        }
+    }
+
     private val moshi = Moshi.Builder().build()
     private val listType = Types.newParameterizedType(List::class.java, Channel::class.java)
     private val adapter = moshi.adapter<List<Channel>>(listType)
 
-    private val parser = com.dstwrtv.app.util.M3UParser()
+    private val parser = com.dstwrtv.app.core.util.M3UParser()
 
     // Robust list of NSFW/Adult content keywords to execute a literal and strict block
     private val blocklist = listOf(
@@ -171,21 +176,26 @@ class ChannelRepository(private val channelDao: ChannelDao) {
         list
     }
 
-    private suspend fun fetchUrlWithRedirects(targetUrl: String): String = withContext(Dispatchers.IO) {
+    private suspend fun fetchUrlWithRedirects(targetUrl: String, bypassCache: Boolean = false): String = withContext(Dispatchers.IO) {
         if (targetUrl.isBlank()) return@withContext ""
+        
+        // Read memory cache
+        if (!bypassCache) {
+            val cachedData = AppCache.get(targetUrl)
+            if (cachedData != null) {
+                return@withContext cachedData
+            }
+        }
+
         var currentUrl = targetUrl
         var redirects = 0
         val maxRedirects = 5
         var resultBody = ""
         
         while (redirects < maxRedirects) {
-            val request = Request.Builder()
-                .url(currentUrl)
-                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-                .header("Accept", "*/*")
-                .build()
+            val request = NetworkClient.newRequest(currentUrl)
                 
-            client.newCall(request).execute().use { response ->
+            NetworkClient.okHttpClient.newCall(request).execute().use { response ->
                 if (response.isRedirect || response.code in 300..399) {
                     val location = response.header("Location")
                     if (!location.isNullOrBlank()) {
@@ -207,22 +217,22 @@ class ChannelRepository(private val channelDao: ChannelDao) {
                 redirects = maxRedirects 
             }
         }
+        
+        // Write to memory cache
+        if (resultBody.isNotBlank()) {
+            AppCache.put(targetUrl, resultBody)
+        }
         resultBody
     }
 
-    suspend fun syncChannels(context: Context, passedCustomUrl: String? = null): Result<Int> = withContext(Dispatchers.IO) {
-        val sharedPrefs = context.getSharedPreferences("dstwr_prefs", Context.MODE_PRIVATE)
+    suspend fun syncChannels(passedCustomUrl: String? = null): Result<Int> = withContext(Dispatchers.IO) {
         try {
             if (passedCustomUrl != null) {
                 val candidate = passedCustomUrl.trim()
-                if (candidate.isBlank()) {
-                    sharedPrefs.edit().remove("custom_m3u_url").apply()
-                } else {
-                    sharedPrefs.edit().putString("custom_m3u_url", candidate).apply()
-                }
+                settingsManager.customM3uUrl = candidate
             }
             
-            val activeCustomUrl = sharedPrefs.getString("custom_m3u_url", null)?.takeIf { it.isNotBlank() }
+            val activeCustomUrl = settingsManager.customM3uUrl
             
             // 2. Fetch System Configuration
             var systemChannels = emptyList<Channel>()
@@ -264,8 +274,8 @@ class ChannelRepository(private val channelDao: ChannelDao) {
             }
 
             // 4. Merge and Sync
-            val sourceMode = sharedPrefs.getString("source_mode", "merged") ?: "merged"
-            val showDev = sharedPrefs.getBoolean("show_dev_package", true)
+            val sourceMode = settingsManager.sourceMode
+            val showDev = settingsManager.showDevPackage
             
             val finalSystem = if ((sourceMode == "merged" || sourceMode == "dev_only") && showDev) systemChannels else emptyList()
             val finalCustom = if (sourceMode == "merged" || sourceMode == "user_only") customChannels else emptyList()

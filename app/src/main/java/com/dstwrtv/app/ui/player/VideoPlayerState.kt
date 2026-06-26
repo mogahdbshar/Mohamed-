@@ -12,15 +12,27 @@ import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.AspectRatioFrameLayout
-import com.dstwrtv.app.util.findActivity
+import com.dstwrtv.app.core.util.findActivity
 import kotlinx.coroutines.*
+import java.lang.ref.WeakReference
 
 @OptIn(UnstableApi::class)
 class VideoPlayerState(
-    val context: Context,
-    val coroutineScope: CoroutineScope,
-    val url: String
+    context: Context,
+    val coroutineScope: CoroutineScope
 ) {
+    private var contextRef = WeakReference(context)
+    val context: Context get() = contextRef.get() ?: error("Context has been garbage collected")
+
+    fun updateContext(newContext: Context) {
+        if (contextRef.get() != newContext) {
+            contextRef = WeakReference(newContext)
+        }
+    }
+
+    var url by mutableStateOf("")
+        private set
+
     var isBuffering by mutableStateOf(true)
     var isError by mutableStateOf(false)
     var errorMessage by mutableStateOf("تعذر تحميل البث المباشر حالياً")
@@ -43,10 +55,23 @@ class VideoPlayerState(
     internal var player: ExoPlayer? by mutableStateOf(null)
     private var stopJob: Job? = null
     private var gestureHideJob: Job? = null
+    private var networkJob: Job? = null
 
     init {
         initBrightness()
-        initPlayer()
+        observeNetwork()
+    }
+
+    private fun observeNetwork() {
+        networkJob?.cancel()
+        networkJob = coroutineScope.launch {
+            com.dstwrtv.app.core.util.NetworkUtils.isOnline.collect { isOnline ->
+                if (isOnline && isError && url.isNotBlank()) {
+                    retryCount = 0
+                    refresh()
+                }
+            }
+        }
     }
 
     private fun initBrightness() {
@@ -56,19 +81,40 @@ class VideoPlayerState(
         }
     }
 
+    fun updateUrl(newUrl: String) {
+        if (this.url == newUrl) return
+        this.url = newUrl
+        
+        isBuffering = true
+        isError = false
+        isRetrying = false
+        retryCount = 0
+        retryJob?.cancel()
+        stopJob?.cancel()
+        
+        if (player == null) {
+            initPlayer()
+        } else {
+            loadUrl()
+        }
+    }
+
     private fun initPlayer() {
         val buildExoPlayer: (Context) -> ExoPlayer = { ctx ->
+            // Use the original context directly to prevent AppOps attribution errors and audio/video issues
+            val mediaContext = ctx
+
             val httpDataSourceFactory = DefaultHttpDataSource.Factory()
-                .setUserAgent("DasturTV/2.1.0/Android")
+                .setUserAgent("DSTWRTV/2.1.0/Android")
                 .setAllowCrossProtocolRedirects(true)
                 .setConnectTimeoutMs(15000)
                 .setReadTimeoutMs(15000)
                 .setDefaultRequestProperties(mapOf(
                     "Referer" to "http://12k-service.org/",
-                    "User-Agent" to "DasturTV/2.1.0/Android"
+                    "User-Agent" to "DSTWRTV/2.1.0/Android"
                 ))
             
-            val mediaSourceFactory = DefaultMediaSourceFactory(ctx)
+            val mediaSourceFactory = DefaultMediaSourceFactory(mediaContext)
                 .setDataSourceFactory(httpDataSourceFactory)
 
             val loadControl = DefaultLoadControl.Builder()
@@ -82,23 +128,27 @@ class VideoPlayerState(
                 .setPrioritizeTimeOverSizeThresholds(true)
                 .build()
 
-            ExoPlayer.Builder(ctx)
+            val audioAttributes = AudioAttributes.Builder()
+                .setUsage(C.USAGE_MEDIA)
+                .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
+                .build()
+
+            ExoPlayer.Builder(mediaContext)
                 .setMediaSourceFactory(mediaSourceFactory)
                 .setLoadControl(loadControl)
+                .setAudioAttributes(audioAttributes, true)
+                .setWakeMode(C.WAKE_MODE_NETWORK)
                 .build().apply {
                     repeatMode = Player.REPEAT_MODE_OFF
                 }
         }
 
         player = try {
-            val playerContext = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                context.applicationContext.createAttributionContext("media")
-            } else {
-                context
-            }
-            buildExoPlayer(playerContext)
+            // CRITICAL FIX: Use the original Activity Context directly to correctly bind to window/surface.
+            // Do NOT use applicationContext or createAttributionContext, which throws AppOps errors and fails to display video.
+            buildExoPlayer(context)
         } catch (e: Exception) {
-            try { buildExoPlayer(context) } catch (inner: Exception) { null }
+            null
         }
 
         setupPlayerListener()
@@ -181,39 +231,80 @@ class VideoPlayerState(
 
     private fun loadUrl() {
         if (url.isBlank()) return
+        if (!com.dstwrtv.app.core.util.NetworkUtils.isInternetAvailable(context)) {
+            isError = true
+            isBuffering = false
+            errorMessage = "لا يوجد اتصال بالإنترنت. يرجى التحقق من الشبكة وإعادة المحاولة."
+            return
+        }
         try {
             val mediaItem = MediaItem.Builder()
                 .setUri(url)
                 .apply {
                     val urlLower = url.lowercase()
-                    if (urlLower.contains(".m3u8") || urlLower.contains("m3u8") || urlLower.contains(".ts")) {
+                    if (urlLower.contains(".m3u8") || urlLower.contains("m3u8")) {
                         setMimeType(MimeTypes.APPLICATION_M3U8)
                     } else if (urlLower.contains(".mpd") || urlLower.contains("mpd")) {
                         setMimeType(MimeTypes.APPLICATION_MPD)
+                    } else if (urlLower.contains(".ts")) {
+                        setMimeType(MimeTypes.VIDEO_MP2T)
                     }
                 }
                 .build()
             
-            player?.setMediaItem(mediaItem)
-            player?.prepare()
-            player?.playWhenReady = true
+            player?.let {
+                it.stop()
+                it.clearMediaItems()
+                it.setMediaItem(mediaItem)
+                it.prepare()
+                it.playWhenReady = true
+                isPlaying = true
+            }
         } catch (e: Exception) {
             isError = true
             errorMessage = "عذراً، رابط البث غير صالح."
         }
     }
 
-    fun togglePlayPause() {
+    fun play() {
         player?.let {
-            if (it.isPlaying) {
-                it.pause()
-                isPlaying = false
-            } else {
+            if (!it.isPlaying) {
                 if (it.playbackState == Player.STATE_IDLE || isError) {
                     loadUrl()
                 }
                 it.play()
                 isPlaying = true
+            }
+        }
+    }
+
+    fun pause() {
+        player?.let {
+            if (it.isPlaying) {
+                it.pause()
+                isPlaying = false
+            }
+        }
+    }
+
+    fun seekForward() {
+        player?.let {
+            it.seekTo(it.currentPosition + 15000)
+        }
+    }
+
+    fun seekBackward() {
+        player?.let {
+            it.seekTo((it.currentPosition - 15000).coerceAtLeast(0))
+        }
+    }
+
+    fun togglePlayPause() {
+        player?.let {
+            if (it.isPlaying) {
+                pause()
+            } else {
+                play()
             }
         }
     }
@@ -226,14 +317,12 @@ class VideoPlayerState(
     fun refresh() {
         isError = false
         isBuffering = true
-        player?.stop()
         loadUrl()
     }
 
     fun toggleResizeMode() {
         resizeMode = when (resizeMode) {
-            AspectRatioFrameLayout.RESIZE_MODE_FIT -> AspectRatioFrameLayout.RESIZE_MODE_FILL
-            AspectRatioFrameLayout.RESIZE_MODE_FILL -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+            AspectRatioFrameLayout.RESIZE_MODE_FIT -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
             else -> AspectRatioFrameLayout.RESIZE_MODE_FIT
         }
     }
@@ -277,6 +366,7 @@ class VideoPlayerState(
         player = null
         stopJob?.cancel()
         gestureHideJob?.cancel()
+        networkJob?.cancel()
     }
 }
 
@@ -286,8 +376,12 @@ fun rememberVideoPlayerState(
     context: Context = LocalContext.current,
     coroutineScope: CoroutineScope = rememberCoroutineScope()
 ): VideoPlayerState {
-    val state = remember(url) {
-        VideoPlayerState(context, coroutineScope, url)
+    val state = remember {
+        VideoPlayerState(context, coroutineScope)
+    }
+    
+    LaunchedEffect(url) {
+        state.updateUrl(url)
     }
     
     DisposableEffect(state) {

@@ -20,10 +20,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dstwrtv.app.model.Channel
-import com.dstwrtv.app.ui.components.DasturTheme
+import com.dstwrtv.app.ui.components.DSTWRTheme
 import com.dstwrtv.app.ui.components.ChannelCardCompact
 
-import com.dstwrtv.app.ui.components.DasturSearchBar
+import com.dstwrtv.app.ui.components.DSTWRSearchBar
 
 @Composable
 fun HomeView(
@@ -42,12 +42,12 @@ fun HomeView(
         val filtered = if (searchQuery.isBlank()) {
             channels
         } else {
-            val norm = com.dstwrtv.app.util.ArabicUtils.normalize(searchQuery)
+            val norm = com.dstwrtv.app.core.util.ArabicUtils.normalize(searchQuery)
             val terms = norm.split(" ").filter { it.isNotBlank() }
             
             channels.filter { ch ->
-                val targetName = com.dstwrtv.app.util.ArabicUtils.normalize(ch.name)
-                val targetCat = com.dstwrtv.app.util.ArabicUtils.normalize(ch.category)
+                val targetName = com.dstwrtv.app.core.util.ArabicUtils.normalize(ch.name)
+                val targetCat = com.dstwrtv.app.core.util.ArabicUtils.normalize(ch.category)
                 terms.all { targetName.contains(it) || targetCat.contains(it) }
             }
         }
@@ -80,17 +80,17 @@ fun HomeView(
                         .clip(RoundedCornerShape(26.dp))
                         .background(
                             Brush.verticalGradient(
-                                colors = listOf(DasturTheme.SurfaceDark, DasturTheme.PureBlack)
+                                colors = listOf(DSTWRTheme.SurfaceDark, DSTWRTheme.PureBlack)
                             )
                         )
-                        .border(BorderStroke(1.2.dp, DasturTheme.BorderSoft), RoundedCornerShape(26.dp))
+                        .border(BorderStroke(1.2.dp, DSTWRTheme.BorderSoft), RoundedCornerShape(26.dp))
                 ) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
                             .background(
                                 Brush.radialGradient(
-                                    colors = listOf(DasturTheme.PrimaryRed.copy(alpha = 0.2f), Color.Transparent),
+                                    colors = listOf(DSTWRTheme.PrimaryRed.copy(alpha = 0.2f), Color.Transparent),
                                     radius = 800f
                                 )
                             )
@@ -101,9 +101,9 @@ fun HomeView(
                         verticalArrangement = Arrangement.Center
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(modifier = Modifier.size(8.dp).background(DasturTheme.AccentAmber, CircleShape))
+                            Box(modifier = Modifier.size(8.dp).background(DSTWRTheme.AccentAmber, CircleShape))
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("تطبيق DSTWR TV", color = DasturTheme.AccentAmber, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            Text("تطبيق DSTWR TV", color = DSTWRTheme.AccentAmber, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                         }
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
@@ -115,14 +115,14 @@ fun HomeView(
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = "استكشف محتوى البث المباشر المتميز وتصفح جميع القنوات المتاحة الآن.",
-                            color = DasturTheme.TextMuted,
+                            color = DSTWRTheme.TextMuted,
                             fontSize = 12.sp,
                             lineHeight = 18.sp
                         )
                         Spacer(modifier = Modifier.height(20.dp))
                         Button(
                             onClick = { onSwitchTab("channels", null) },
-                            colors = ButtonDefaults.buttonColors(containerColor = DasturTheme.PrimaryRed),
+                            colors = ButtonDefaults.buttonColors(containerColor = DSTWRTheme.PrimaryRed),
                             shape = RoundedCornerShape(12.dp),
                             contentPadding = PaddingValues(horizontal = 24.dp)
                         ) {
@@ -136,7 +136,7 @@ fun HomeView(
         }
         
         item {
-            DasturSearchBar(searchQuery = searchQuery, onSearchChange = onSearchChange)
+            DSTWRSearchBar(searchQuery = searchQuery, onSearchChange = onSearchChange)
             Spacer(modifier = Modifier.height(10.dp))
         }
 
@@ -156,7 +156,7 @@ fun HomeView(
                         )
                         Text(
                             text = "الكل",
-                            color = DasturTheme.PrimaryRed,
+                            color = DSTWRTheme.PrimaryRed,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier

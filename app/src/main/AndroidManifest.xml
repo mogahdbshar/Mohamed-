@@ -6,8 +6,13 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Removed unused RECEIVE_BOOT_COMPLETED -->
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    
+    <!-- Removed unused POST_NOTIFICATIONS -->
+    
+    <!-- Foreground Service permissions for background playback & PiP controls -->
+    <!-- Removed unused FOREGROUND_SERVICE permissions -->
 
     <!-- Leanback support for Android TV compatibility -->
     <uses-feature android:name="android.software.leanback" android:required="false" />
@@ -21,8 +26,6 @@
         android:largeScreens="true"
         android:xlargeScreens="true"
         android:anyDensity="true" />
-
-    <attribution android:tag="media" android:label="@string/app_name" />
 
     <queries>
         <!-- Support viewing Instagram/Web URLs -->
@@ -43,6 +46,8 @@
         </intent>
     </queries>
 
+    <attribution android:tag="default_tag" android:label="@string/app_name" />
+
     <application
         android:name=".DstwrApplication"
         android:allowBackup="true"
@@ -54,17 +59,18 @@
         android:supportsRtl="true"
         android:usesCleartextTraffic="true"
         android:hardwareAccelerated="true"
-        android:theme="@style/Theme.DasturTV">
+        android:theme="@style/Theme.DSTWRTV">
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:label="@string/app_name"
             android:configChanges="orientation|keyboardHidden|screenSize|smallestScreenSize|screenLayout"
-            android:theme="@style/Theme.DasturTV">
+            android:supportsPictureInPicture="true"
+            android:theme="@style/Theme.DSTWRTV">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity>
     </application>

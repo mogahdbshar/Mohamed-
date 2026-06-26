@@ -21,7 +21,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.dstwrtv.app.ui.components.DasturTheme
+import com.dstwrtv.app.ui.components.DSTWRTheme
 
 data class ThemeInfo(
     val id: String,
@@ -43,7 +43,7 @@ fun GlassGroup(
         if (title != null) {
             Text(
                 text = title,
-                color = DasturTheme.TextMain,
+                color = DSTWRTheme.TextMain,
                 fontSize = 12.5.sp,
                 fontWeight = FontWeight.Black,
                 modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)
@@ -51,7 +51,7 @@ fun GlassGroup(
             if (subtitle != null) {
                 Text(
                     text = subtitle,
-                    color = DasturTheme.TextMuted,
+                    color = DSTWRTheme.TextMuted,
                     fontSize = 9.5.sp,
                     lineHeight = 13.sp,
                     modifier = Modifier.padding(start = 4.dp, bottom = 12.dp)
@@ -66,13 +66,13 @@ fun GlassGroup(
                 .background(
                     brush = Brush.verticalGradient(
                         colors = listOf(
-                            DasturTheme.SurfaceDark,
-                            DasturTheme.SurfaceDark.copy(alpha = 0.08f)
+                            DSTWRTheme.SurfaceDark,
+                            DSTWRTheme.SurfaceDark.copy(alpha = 0.08f)
                         )
                     ),
                     shape = RoundedCornerShape(16.dp)
                 )
-                .border(1.2.dp, DasturTheme.BorderSoft, RoundedCornerShape(16.dp))
+                .border(1.2.dp, DSTWRTheme.BorderSoft, RoundedCornerShape(16.dp))
                 .padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
@@ -88,7 +88,7 @@ fun PremiumSwitchRow(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
     icon: ImageVector? = null,
-    iconColor: Color = DasturTheme.PrimaryRed
+    iconColor: Color = DSTWRTheme.PrimaryRed
 ) {
     Row(
         modifier = Modifier
@@ -140,14 +140,14 @@ fun PremiumSwitchRow(
             Column {
                 Text(
                     text = title,
-                    color = DasturTheme.TextMain,
+                    color = DSTWRTheme.TextMain,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = subtitle,
-                    color = DasturTheme.TextMuted,
+                    color = DSTWRTheme.TextMuted,
                     fontSize = 10.sp,
                     lineHeight = 14.sp
                 )
@@ -158,10 +158,10 @@ fun PremiumSwitchRow(
             onCheckedChange = onCheckedChange,
             colors = SwitchDefaults.colors(
                 checkedThumbColor = Color.White,
-                checkedTrackColor = DasturTheme.PrimaryRed,
-                uncheckedThumbColor = DasturTheme.TextMuted,
-                uncheckedTrackColor = DasturTheme.SecondaryDark,
-                uncheckedBorderColor = DasturTheme.BorderSoft
+                checkedTrackColor = DSTWRTheme.PrimaryRed,
+                uncheckedThumbColor = DSTWRTheme.TextMuted,
+                uncheckedTrackColor = DSTWRTheme.SecondaryDark,
+                uncheckedBorderColor = DSTWRTheme.BorderSoft
             )
         )
     }
@@ -186,14 +186,14 @@ fun PremiumRadioButtonRow(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
-                color = if (selected) Color.White else DasturTheme.TextMain,
+                color = if (selected) Color.White else DSTWRTheme.TextMain,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Black
             )
             Spacer(modifier = Modifier.height(3.dp))
             Text(
                 text = subtitle,
-                color = DasturTheme.TextMuted,
+                color = DSTWRTheme.TextMuted,
                 fontSize = 10.sp,
                 lineHeight = 14.sp
             )
@@ -202,8 +202,8 @@ fun PremiumRadioButtonRow(
             selected = selected,
             onClick = onSelect,
             colors = RadioButtonDefaults.colors(
-                selectedColor = DasturTheme.PrimaryRed,
-                unselectedColor = DasturTheme.TextMuted
+                selectedColor = DSTWRTheme.PrimaryRed,
+                unselectedColor = DSTWRTheme.TextMuted
             )
         )
     }
@@ -229,8 +229,8 @@ fun PremiumMenuOptionCard(
             width = 1.2.dp,
             brush = Brush.horizontalGradient(
                 colors = listOf(
-                    DasturTheme.BorderSoft,
-                    DasturTheme.BorderSoft.copy(alpha = 0.2f)
+                    DSTWRTheme.BorderSoft,
+                    DSTWRTheme.BorderSoft.copy(alpha = 0.2f)
                 )
             )
         )
@@ -241,8 +241,8 @@ fun PremiumMenuOptionCard(
                 .background(
                     brush = Brush.verticalGradient(
                         colors = listOf(
-                            DasturTheme.SurfaceDark,
-                            DasturTheme.SurfaceDark.copy(alpha = 0.08f)
+                            DSTWRTheme.SurfaceDark,
+                            DSTWRTheme.SurfaceDark.copy(alpha = 0.08f)
                         )
                     )
                 )
@@ -312,14 +312,14 @@ fun PremiumMenuOptionCard(
                     Column {
                         Text(
                             text = title,
-                            color = DasturTheme.TextMain,
+                            color = DSTWRTheme.TextMain,
                             fontSize = 13.5.sp,
                             fontWeight = FontWeight.Black
                         )
                         Spacer(modifier = Modifier.height(3.dp))
                         Text(
                             text = subtitle,
-                            color = DasturTheme.TextMuted,
+                            color = DSTWRTheme.TextMuted,
                             fontSize = 10.sp,
                             lineHeight = 14.sp
                         )
@@ -331,8 +331,8 @@ fun PremiumMenuOptionCard(
                     Box(
                         modifier = Modifier
                             .size(28.dp)
-                            .background(DasturTheme.SecondaryDark, CircleShape)
-                            .border(1.dp, DasturTheme.BorderSoft.copy(alpha = 0.5f), CircleShape),
+                            .background(DSTWRTheme.SecondaryDark, CircleShape)
+                            .border(1.dp, DSTWRTheme.BorderSoft.copy(alpha = 0.5f), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
@@ -361,7 +361,7 @@ fun ThemeOptionRow(
             .background(if (isSelected) theme.primary.copy(alpha = 0.08f) else Color.Transparent)
             .border(
                 1.dp, 
-                if (isSelected) theme.primary.copy(alpha = 0.4f) else DasturTheme.BorderSoft.copy(alpha = 0.4f), 
+                if (isSelected) theme.primary.copy(alpha = 0.4f) else DSTWRTheme.BorderSoft.copy(alpha = 0.4f), 
                 RoundedCornerShape(14.dp)
             )
             .clickable { onSelect() }
@@ -386,7 +386,7 @@ fun ThemeOptionRow(
         Spacer(modifier = Modifier.width(16.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(text = theme.name, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Black)
-            Text(text = theme.description, color = DasturTheme.TextMuted, fontSize = 10.sp, lineHeight = 14.sp)
+            Text(text = theme.description, color = DSTWRTheme.TextMuted, fontSize = 10.sp, lineHeight = 14.sp)
         }
         RadioButton(
             selected = isSelected,

@@ -17,7 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import com.dstwrtv.app.ui.components.DasturTheme
+import com.dstwrtv.app.ui.components.DSTWRTheme
 
 @Composable
 fun GestureOverlay(
@@ -63,7 +63,7 @@ fun GestureOverlay(
                         modifier = Modifier
                             .fillMaxWidth()
                             .fillMaxHeight(gestureValue)
-                            .background(DasturTheme.PrimaryRed, RoundedCornerShape(2.dp))
+                            .background(DSTWRTheme.PrimaryRed, RoundedCornerShape(2.dp))
                     )
                 }
             }

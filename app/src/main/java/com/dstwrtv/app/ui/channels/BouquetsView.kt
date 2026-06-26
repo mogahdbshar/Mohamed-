@@ -19,9 +19,9 @@ import androidx.compose.ui.unit.sp
 import com.dstwrtv.app.model.Channel
 import com.dstwrtv.app.ui.channels.components.BouquetsGridView
 import com.dstwrtv.app.ui.channels.components.ChannelList
-import com.dstwrtv.app.ui.components.DasturTheme
+import com.dstwrtv.app.ui.components.DSTWRTheme
 
-import com.dstwrtv.app.ui.components.DasturSearchBar
+import com.dstwrtv.app.ui.components.DSTWRSearchBar
 
 @Composable
 fun BouquetsView(
@@ -50,10 +50,10 @@ fun BouquetsView(
         val filtered = if (query.isBlank()) {
             allBouquets
         } else {
-            val norm = com.dstwrtv.app.util.ArabicUtils.normalize(query)
+            val norm = com.dstwrtv.app.core.util.ArabicUtils.normalize(query)
             val terms = norm.split(" ").filter { it.isNotBlank() }
             allBouquets.filter { bouquet ->
-                val target = com.dstwrtv.app.util.ArabicUtils.normalize(bouquet)
+                val target = com.dstwrtv.app.core.util.ArabicUtils.normalize(bouquet)
                 terms.all { target.contains(it) }
             }
         }
@@ -86,15 +86,15 @@ fun BouquetsView(
                     onClick = onBackToGrid,
                     modifier = Modifier
                         .size(34.dp)
-                        .background(DasturTheme.SurfaceDark, CircleShape)
-                        .border(1.dp, DasturTheme.BorderSoft, CircleShape)
+                        .background(DSTWRTheme.SurfaceDark, CircleShape)
+                        .border(1.dp, DSTWRTheme.BorderSoft, CircleShape)
                 ) {
                     Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "رجوع", tint = Color.White, modifier = Modifier.size(16.dp))
                 }
                 Spacer(modifier = Modifier.width(12.dp))
                 Column {
-                    Text(activeBouquetDetail, color = DasturTheme.TextMain, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                    Text("${bouquetChannels.size} قناة متاحة", color = DasturTheme.TextMuted, fontSize = 11.sp)
+                    Text(activeBouquetDetail, color = DSTWRTheme.TextMain, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text("${bouquetChannels.size} قناة متاحة", color = DSTWRTheme.TextMuted, fontSize = 11.sp)
                 }
             }
 
@@ -112,11 +112,11 @@ fun BouquetsView(
     } else {
         Column(modifier = Modifier.fillMaxSize()) {
             Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
-                Text("باقات البث التلفزيوني الموحد", color = DasturTheme.TextMain, fontSize = 17.sp, fontWeight = FontWeight.Black)
-                Text("اختر تصنيف الباقة المفضلة للانتقال الفوري لقنواتها", color = DasturTheme.TextMuted, fontSize = 11.sp)
+                Text("باقات البث التلفزيوني الموحد", color = DSTWRTheme.TextMain, fontSize = 17.sp, fontWeight = FontWeight.Black)
+                Text("اختر تصنيف الباقة المفضلة للانتقال الفوري لقنواتها", color = DSTWRTheme.TextMuted, fontSize = 11.sp)
             }
 
-            DasturSearchBar(searchQuery = query, onSearchChange = { query = it })
+            DSTWRSearchBar(searchQuery = query, onSearchChange = { query = it })
 
             Spacer(modifier = Modifier.height(14.dp))
 

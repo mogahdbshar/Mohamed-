@@ -23,7 +23,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dstwrtv.app.model.Channel
-import com.dstwrtv.app.ui.components.DasturTheme
+import com.dstwrtv.app.ui.components.DSTWRTheme
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
@@ -40,12 +40,17 @@ fun BouquetsGridView(
     if (bouquetsList.isEmpty()) {
         Box(modifier = modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                CircularProgressIndicator(color = DasturTheme.PrimaryRed)
+                CircularProgressIndicator(color = DSTWRTheme.PrimaryRed)
                 Spacer(modifier = Modifier.height(10.dp))
-                Text("جاري معالجة وتصنيف القنوات...", color = DasturTheme.TextMuted, fontSize = 12.sp)
+                Text("جاري معالجة وتصنيف القنوات...", color = DSTWRTheme.TextMuted, fontSize = 12.sp)
             }
         }
     } else {
+        // Pre-calculate channel counts by category to prevent O(N * M) scans during scroll/render
+        val channelCounts = remember(channels) {
+            channels.groupBy { it.category }.mapValues { it.value.size }
+        }
+
         LazyVerticalGrid(
             columns = GridCells.Fixed(2),
             contentPadding = PaddingValues(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 110.dp),
@@ -53,11 +58,11 @@ fun BouquetsGridView(
             verticalArrangement = Arrangement.spacedBy(14.dp),
             modifier = modifier
         ) {
-            items(bouquetsList) { bouquetName ->
+            items(bouquetsList, key = { it }) { bouquetName ->
                 val gradient = remember(bouquetName) { getBouquetGradient(bouquetName) }
                 val icon = remember(bouquetName) { getBouquetIcon(bouquetName) }
-                val channelCount = remember(channels, bouquetName) {
-                    channels.count { it.category == bouquetName }
+                val channelCount = remember(bouquetName, channelCounts) {
+                    channelCounts[bouquetName] ?: 0
                 }
 
                 Box(
@@ -138,7 +143,7 @@ fun getBouquetGradient(bouquetName: String): Brush {
     return when {
         bouquetName.contains("beIN") -> Brush.verticalGradient(listOf(Color(0xFF8A1538), Color(0xFF4A0B1D)))
         bouquetName.contains("SSC") -> Brush.verticalGradient(listOf(Color(0xFF0F172A), Color(0xFF1E293B)))
-        bouquetName.contains("OSN") -> Brush.verticalGradient(listOf(DasturTheme.PrimaryRed, Color(0xFF881337)))
+        bouquetName.contains("OSN") -> Brush.verticalGradient(listOf(DSTWRTheme.PrimaryRed, Color(0xFF881337)))
         bouquetName.contains("MBC") -> Brush.verticalGradient(listOf(Color(0xFF1E3A8A), Color(0xFF172554)))
         bouquetName.contains("نتفليكس") || bouquetName.contains("Netflix") -> Brush.verticalGradient(listOf(Color(0xFF312E81), Color(0xFF1E1B4B)))
         bouquetName.contains("روتانا") -> Brush.verticalGradient(listOf(Color(0xFF047857), Color(0xFF065F46)))

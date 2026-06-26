@@ -8,6 +8,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -33,19 +34,32 @@ fun SplashView() {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                Brush.radialGradient(
-                    colors = listOf(Color(0xFF1B0F2A), DasturTheme.PureBlack),
-                    radius = 2000f
+            .drawBehind {
+                // 1. Base vertical cosmic gradient representing space depth
+                drawRect(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            Color(0xFF1C0B35), // Cinematic rich cosmic violet
+                            Color(0xFF0B0415), // Deep midnight purple-black
+                            DSTWRTheme.PureBlack // Deepest black
+                        )
+                    )
                 )
-            ),
+                
+                // 2. High-fidelity centered glowing backlight representing a cinema screen glow
+                drawRect(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            DSTWRTheme.PrimaryRed.copy(alpha = 0.16f), // Rich warm ambient glow
+                            Color.Transparent
+                        ),
+                        center = androidx.compose.ui.geometry.Offset(size.width / 2f, size.height / 2f),
+                        radius = size.minDimension * 0.85f // Perfectly adaptive and responsive radius
+                    )
+                )
+            },
         contentAlignment = Alignment.Center
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Brush.radialGradient(colors = listOf(DasturTheme.PrimaryRed.copy(alpha = 0.08f), Color.Transparent)))
-        )
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.padding(horizontal = 24.dp)
@@ -63,7 +77,7 @@ fun SplashView() {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 "DSTWR",
-                                color = DasturTheme.TextMain,
+                                color = DSTWRTheme.TextMain,
                                 fontSize = 26.sp,
                                 fontWeight = FontWeight.Black,
                                 letterSpacing = 1.sp
@@ -71,7 +85,7 @@ fun SplashView() {
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
                                 "TV",
-                                color = DasturTheme.PrimaryRed,
+                                color = DSTWRTheme.PrimaryRed,
                                 fontSize = 26.sp,
                                 fontWeight = FontWeight.Black
                             )
@@ -80,7 +94,7 @@ fun SplashView() {
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
                         "منصة البث المباشر المتكاملة",
-                        color = DasturTheme.TextMuted,
+                        color = DSTWRTheme.TextMuted,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium,
                         letterSpacing = 1.sp
@@ -107,7 +121,7 @@ fun SplashView() {
                         .fillMaxWidth(progressWidth)
                         .background(
                             Brush.linearGradient(
-                                colors = listOf(DasturTheme.PrimaryRed, DasturTheme.AccentAmber)
+                                colors = listOf(DSTWRTheme.PrimaryRed, DSTWRTheme.AccentAmber)
                             ),
                             RoundedCornerShape(2.dp)
                         )
@@ -120,7 +134,7 @@ fun SplashView() {
                     1 -> "جاري مزامنة وترتيب قنوات البث..."
                     else -> "مستقر وجاهز للتشغيل..."
                 },
-                color = DasturTheme.TextMuted.copy(alpha = 0.7f),
+                color = DSTWRTheme.TextMuted.copy(alpha = 0.7f),
                 fontSize = 11.sp
             )
         }

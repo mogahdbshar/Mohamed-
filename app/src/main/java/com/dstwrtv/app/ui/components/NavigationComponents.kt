@@ -1,5 +1,7 @@
 package com.dstwrtv.app.ui.components
 
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -11,6 +13,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -20,27 +23,34 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 @Composable
-fun DasturHeader(onActionClick: () -> Unit) {
+fun DSTWRHeader(onActionClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .statusBarsPadding()
+            .padding(horizontal = 24.dp, vertical = 16.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
             modifier = Modifier
-                .clip(RoundedCornerShape(22.dp))
-                .background(Brush.horizontalGradient(listOf(DasturTheme.SurfaceDark, Color.Transparent)))
+                .clip(RoundedCornerShape(30.dp))
+                .background(DSTWRTheme.SurfaceDark)
                 .border(
-                    BorderStroke(1.dp, Brush.linearGradient(listOf(DasturTheme.BorderSoft, Color.Transparent))),
-                    RoundedCornerShape(22.dp)
+                    width = 1.dp,
+                    brush = Brush.linearGradient(
+                        colors = listOf(
+                            Color.White.copy(alpha = 0.2f),
+                            Color.White.copy(alpha = 0.05f)
+                        )
+                    ),
+                    shape = RoundedCornerShape(30.dp)
                 )
                 .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
             CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    DstwrLogo(size = 30.dp)
+                    DstwrLogo(size = 28.dp)
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
                         "DSTWR",
@@ -51,7 +61,7 @@ fun DasturHeader(onActionClick: () -> Unit) {
                     )
                     Text(
                         "TV",
-                        color = DasturTheme.PrimaryRed,
+                        color = DSTWRTheme.PrimaryRed,
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Black,
                         letterSpacing = 0.8.sp
@@ -61,35 +71,53 @@ fun DasturHeader(onActionClick: () -> Unit) {
         }
         Box(
             modifier = Modifier
-                .size(44.dp)
+                .size(46.dp)
                 .clip(CircleShape)
-                .background(DasturTheme.SurfaceDark)
-                .border(BorderStroke(1.2.dp, DasturTheme.BorderSoft), CircleShape)
+                .background(DSTWRTheme.SurfaceDark)
+                .border(
+                    width = 1.dp,
+                    brush = Brush.linearGradient(
+                        colors = listOf(
+                            Color.White.copy(alpha = 0.2f),
+                            Color.White.copy(alpha = 0.05f)
+                        )
+                    ),
+                    shape = CircleShape
+                )
                 .clickable { onActionClick() },
             contentAlignment = Alignment.Center
         ) {
-            Icon(Icons.Rounded.Settings, null, tint = Color.White, modifier = Modifier.size(20.dp))
+            Icon(Icons.Rounded.Settings, null, tint = Color.White, modifier = Modifier.size(22.dp))
         }
     }
 }
 
 @Composable
-fun DasturBottomNavigation(currentTab: String, onTabSelected: (String) -> Unit) {
+fun DSTWRBottomNavigation(currentTab: String, onTabSelected: (String) -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .navigationBarsPadding()
-            .padding(start = 20.dp, end = 20.dp, bottom = 12.dp)
+            .padding(start = 24.dp, end = 24.dp, bottom = 16.dp)
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(66.dp)
+                .height(68.dp)
                 .background(
-                    Brush.verticalGradient(listOf(Color(0xE60D0D14), Color(0xFB05050A))),
-                    RoundedCornerShape(22.dp)
+                    color = DSTWRTheme.SurfaceDark, // Translucent glass effect
+                    shape = RoundedCornerShape(34.dp)
                 )
-                .border(1.2.dp, DasturTheme.BorderSoft, RoundedCornerShape(22.dp))
+                .border(
+                    width = 1.dp,
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            DSTWRTheme.BorderSoft,
+                            DSTWRTheme.BorderSoft.copy(alpha = 0.2f)
+                        )
+                    ),
+                    shape = RoundedCornerShape(34.dp)
+                )
                 .padding(horizontal = 8.dp),
             contentAlignment = Alignment.Center
         ) {
@@ -105,18 +133,49 @@ fun DasturBottomNavigation(currentTab: String, onTabSelected: (String) -> Unit) 
                     Triple("favorites", "المفضلة", Icons.Rounded.FavoriteBorder),
                     Triple("settings", "الإعدادات", Icons.Rounded.Settings)
                 )
+                
                 tabs.forEach { (tabId, label, icon) ->
                     val isActive = currentTab == tabId
+                    
+                    val scaleFactor by animateFloatAsState(
+                        targetValue = if (isActive) 1.15f else 1.0f,
+                        animationSpec = spring(
+                            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+                            stiffness = androidx.compose.animation.core.Spring.StiffnessMedium
+                        ),
+                        label = "tabScale"
+                    )
+
+                    val tintColor by animateColorAsState(
+                        targetValue = if (isActive) DSTWRTheme.PrimaryRed else DSTWRTheme.TextMuted.copy(alpha = 0.7f),
+                        animationSpec = spring(stiffness = androidx.compose.animation.core.Spring.StiffnessLow),
+                        label = "tabTint"
+                    )
+
+                    val glowColor by animateColorAsState(
+                        targetValue = if (isActive) DSTWRTheme.PrimaryRed.copy(alpha = 0.15f) else Color.Transparent,
+                        animationSpec = spring(stiffness = androidx.compose.animation.core.Spring.StiffnessLow),
+                        label = "tabGlow"
+                    )
+
                     Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(if (isActive) DasturTheme.PrimaryRed.copy(alpha = 0.16f) else Color.Transparent)
+                            .scale(scaleFactor)
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(glowColor)
                             .border(
-                                BorderStroke(1.dp, if (isActive) DasturTheme.PrimaryRed.copy(alpha = 0.35f) else Color.Transparent),
-                                RoundedCornerShape(16.dp)
+                                width = 1.dp,
+                                color = if (isActive) DSTWRTheme.PrimaryRed.copy(alpha = 0.35f) else Color.Transparent,
+                                shape = RoundedCornerShape(18.dp)
                             )
-                            .clickable { onTabSelected(tabId) }
-                            .padding(horizontal = 12.dp, vertical = 7.dp)
+                            .clickable(
+                                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                indication = androidx.compose.foundation.LocalIndication.current
+                            ) { 
+                                onTabSelected(tabId) 
+                            }
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        contentAlignment = Alignment.Center
                     ) {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
@@ -125,17 +184,37 @@ fun DasturBottomNavigation(currentTab: String, onTabSelected: (String) -> Unit) 
                             Icon(
                                 if (tabId == "favorites" && isActive) Icons.Rounded.Favorite else icon,
                                 label,
-                                tint = if (isActive) DasturTheme.PrimaryRed else DasturTheme.TextMuted,
-                                modifier = Modifier.size(20.dp)
+                                tint = tintColor,
+                                modifier = Modifier.size(24.dp)
                             )
-                            if (isActive) {
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(
-                                    label,
-                                    color = Color.White,
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
+                            
+                            // Smoothly animate text label appearance
+                            AnimatedVisibility(
+                                visible = isActive,
+                                enter = fadeIn() + expandVertically(),
+                                exit = fadeOut() + shrinkVertically()
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        label,
+                                        color = Color.White,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Black
+                                    )
+                                    Spacer(modifier = Modifier.height(3.dp))
+                                    // Premium active indicator dot
+                                    Box(
+                                        modifier = Modifier
+                                            .size(width = 12.dp, height = 3.dp)
+                                            .background(
+                                                brush = Brush.horizontalGradient(
+                                                    colors = listOf(DSTWRTheme.PrimaryRed, DSTWRTheme.AccentAmber)
+                                                ),
+                                                shape = RoundedCornerShape(1.5.dp)
+                                            )
+                                    )
+                                }
                             }
                         }
                     }
