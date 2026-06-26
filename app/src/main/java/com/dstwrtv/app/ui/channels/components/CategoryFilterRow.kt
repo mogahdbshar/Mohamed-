@@ -16,9 +16,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -39,28 +42,30 @@ fun CategoryFilterRow(
     ) {
         items(filters, key = { it.first }) { (id, label) ->
             val isActive = activeFilterId == id
+            var isFocused by remember { mutableStateOf(false) }
+            val isHighlighted = isActive || isFocused
             
             // Premium smooth color transitions
             val backgroundColor by animateColorAsState(
-                targetValue = if (isActive) DSTWRTheme.PrimaryRed else DSTWRTheme.SurfaceDark,
+                targetValue = if (isHighlighted) DSTWRTheme.PrimaryRed else DSTWRTheme.SurfaceDark,
                 animationSpec = spring(stiffness = Spring.StiffnessLow),
                 label = "bgColor"
             )
             
             val borderAccentColor by animateColorAsState(
-                targetValue = if (isActive) DSTWRTheme.AccentAmber.copy(alpha = 0.6f) else DSTWRTheme.BorderSoft.copy(alpha = 0.3f),
+                targetValue = if (isHighlighted) DSTWRTheme.AccentAmber.copy(alpha = 0.6f) else DSTWRTheme.BorderSoft.copy(alpha = 0.3f),
                 animationSpec = spring(stiffness = Spring.StiffnessLow),
                 label = "borderColor"
             )
 
             val textColor by animateColorAsState(
-                targetValue = if (isActive) Color.White else DSTWRTheme.TextMuted,
+                targetValue = if (isHighlighted) Color.White else DSTWRTheme.TextMuted,
                 animationSpec = spring(stiffness = Spring.StiffnessLow),
                 label = "textColor"
             )
 
             val scaleFactor by animateFloatAsState(
-                targetValue = if (isActive) 1.05f else 1.0f,
+                targetValue = if (isFocused) 1.1f else (if (isActive) 1.05f else 1.0f),
                 animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
                 label = "scale"
             )
@@ -68,9 +73,10 @@ fun CategoryFilterRow(
             Box(
                 modifier = Modifier
                     .scale(scaleFactor)
+                    .onFocusChanged { isFocused = it.isFocused }
                     .clip(RoundedCornerShape(20.dp))
                     .background(
-                        if (isActive) {
+                        if (isHighlighted) {
                             Brush.horizontalGradient(
                                 colors = listOf(DSTWRTheme.PrimaryRed, DSTWRTheme.PrimaryRed.copy(alpha = 0.8f))
                             )
@@ -87,7 +93,7 @@ fun CategoryFilterRow(
                         onFilterSelect(id)
                     }
                     .border(
-                        width = if (isActive) 1.5.dp else 1.dp,
+                        width = if (isHighlighted) 1.5.dp else 1.dp,
                         brush = Brush.linearGradient(
                             colors = listOf(borderAccentColor, borderAccentColor.copy(alpha = 0.3f))
                         ),

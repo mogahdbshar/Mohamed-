@@ -14,6 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -69,25 +70,32 @@ fun DSTWRHeader(onActionClick: () -> Unit) {
                 }
             }
         }
+        var isFocused by remember { mutableStateOf(false) }
         Box(
             modifier = Modifier
                 .size(46.dp)
+                .scale(if (isFocused) 1.15f else 1.0f)
+                .onFocusChanged { isFocused = it.isFocused }
                 .clip(CircleShape)
-                .background(DSTWRTheme.SurfaceDark)
+                .background(if (isFocused) DSTWRTheme.PrimaryRed.copy(alpha = 0.2f) else DSTWRTheme.SurfaceDark)
                 .border(
-                    width = 1.dp,
+                    width = if (isFocused) 2.dp else 1.dp,
                     brush = Brush.linearGradient(
-                        colors = listOf(
-                            Color.White.copy(alpha = 0.2f),
-                            Color.White.copy(alpha = 0.05f)
-                        )
+                        colors = if (isFocused) {
+                            listOf(DSTWRTheme.PrimaryRed, DSTWRTheme.AccentAmber)
+                        } else {
+                            listOf(
+                                Color.White.copy(alpha = 0.2f),
+                                Color.White.copy(alpha = 0.05f)
+                            )
+                        }
                     ),
                     shape = CircleShape
                 )
                 .clickable { onActionClick() },
             contentAlignment = Alignment.Center
         ) {
-            Icon(Icons.Rounded.Settings, null, tint = Color.White, modifier = Modifier.size(22.dp))
+            Icon(Icons.Rounded.Settings, null, tint = if (isFocused) DSTWRTheme.AccentAmber else Color.White, modifier = Modifier.size(22.dp))
         }
     }
 }
@@ -136,9 +144,11 @@ fun DSTWRBottomNavigation(currentTab: String, onTabSelected: (String) -> Unit) {
                 
                 tabs.forEach { (tabId, label, icon) ->
                     val isActive = currentTab == tabId
+                    var isFocused by remember { mutableStateOf(false) }
+                    val isHighlighted = isActive || isFocused
                     
                     val scaleFactor by animateFloatAsState(
-                        targetValue = if (isActive) 1.15f else 1.0f,
+                        targetValue = if (isFocused) 1.25f else (if (isActive) 1.15f else 1.0f),
                         animationSpec = spring(
                             dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
                             stiffness = androidx.compose.animation.core.Spring.StiffnessMedium
@@ -147,13 +157,13 @@ fun DSTWRBottomNavigation(currentTab: String, onTabSelected: (String) -> Unit) {
                     )
 
                     val tintColor by animateColorAsState(
-                        targetValue = if (isActive) DSTWRTheme.PrimaryRed else DSTWRTheme.TextMuted.copy(alpha = 0.7f),
+                        targetValue = if (isHighlighted) DSTWRTheme.PrimaryRed else DSTWRTheme.TextMuted.copy(alpha = 0.7f),
                         animationSpec = spring(stiffness = androidx.compose.animation.core.Spring.StiffnessLow),
                         label = "tabTint"
                     )
 
                     val glowColor by animateColorAsState(
-                        targetValue = if (isActive) DSTWRTheme.PrimaryRed.copy(alpha = 0.15f) else Color.Transparent,
+                        targetValue = if (isHighlighted) DSTWRTheme.PrimaryRed.copy(alpha = 0.15f) else Color.Transparent,
                         animationSpec = spring(stiffness = androidx.compose.animation.core.Spring.StiffnessLow),
                         label = "tabGlow"
                     )
@@ -161,11 +171,12 @@ fun DSTWRBottomNavigation(currentTab: String, onTabSelected: (String) -> Unit) {
                     Box(
                         modifier = Modifier
                             .scale(scaleFactor)
+                            .onFocusChanged { isFocused = it.isFocused }
                             .clip(RoundedCornerShape(18.dp))
                             .background(glowColor)
                             .border(
                                 width = 1.dp,
-                                color = if (isActive) DSTWRTheme.PrimaryRed.copy(alpha = 0.35f) else Color.Transparent,
+                                color = if (isHighlighted) DSTWRTheme.PrimaryRed.copy(alpha = 0.35f) else Color.Transparent,
                                 shape = RoundedCornerShape(18.dp)
                             )
                             .clickable(

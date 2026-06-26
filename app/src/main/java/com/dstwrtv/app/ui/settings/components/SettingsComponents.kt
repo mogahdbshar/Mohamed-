@@ -11,10 +11,16 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -90,10 +96,22 @@ fun PremiumSwitchRow(
     icon: ImageVector? = null,
     iconColor: Color = DSTWRTheme.PrimaryRed
 ) {
+    var isFocused by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .scale(if (isFocused) 1.03f else 1.0f)
+            .onFocusChanged { isFocused = it.isFocused }
             .clip(RoundedCornerShape(14.dp))
+            .background(if (isFocused) Color.White.copy(alpha = 0.08f) else Color.Transparent)
+            .border(
+                width = if (isFocused) 1.5.dp else 0.dp,
+                brush = Brush.linearGradient(
+                    colors = if (isFocused) listOf(DSTWRTheme.PrimaryRed.copy(alpha = 0.6f), DSTWRTheme.AccentAmber.copy(alpha = 0.3f))
+                             else listOf(Color.Transparent, Color.Transparent)
+                ),
+                shape = RoundedCornerShape(14.dp)
+            )
             .clickable { onCheckedChange(!checked) }
             .padding(vertical = 12.dp, horizontal = 6.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -174,10 +192,22 @@ fun PremiumRadioButtonRow(
     selected: Boolean,
     onSelect: () -> Unit
 ) {
+    var isFocused by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .scale(if (isFocused) 1.03f else 1.0f)
+            .onFocusChanged { isFocused = it.isFocused }
             .clip(RoundedCornerShape(14.dp))
+            .background(if (isFocused) Color.White.copy(alpha = 0.08f) else Color.Transparent)
+            .border(
+                width = if (isFocused) 1.5.dp else 0.dp,
+                brush = Brush.linearGradient(
+                    colors = if (isFocused) listOf(DSTWRTheme.PrimaryRed.copy(alpha = 0.6f), DSTWRTheme.AccentAmber.copy(alpha = 0.3f))
+                             else listOf(Color.Transparent, Color.Transparent)
+                ),
+                shape = RoundedCornerShape(14.dp)
+            )
             .clickable { onSelect() }
             .padding(vertical = 12.dp, horizontal = 6.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -218,20 +248,27 @@ fun PremiumMenuOptionCard(
     onClick: () -> Unit,
     trailingContent: @Composable (() -> Unit)? = null
 ) {
+    var isFocused by remember { mutableStateOf(false) }
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 5.dp)
+            .scale(if (isFocused) 1.04f else 1.0f)
+            .onFocusChanged { isFocused = it.isFocused }
             .clickable { onClick() },
         colors = CardDefaults.cardColors(containerColor = Color.Transparent),
         shape = RoundedCornerShape(18.dp),
         border = BorderStroke(
-            width = 1.2.dp,
+            width = if (isFocused) 1.8.dp else 1.2.dp,
             brush = Brush.horizontalGradient(
-                colors = listOf(
-                    DSTWRTheme.BorderSoft,
-                    DSTWRTheme.BorderSoft.copy(alpha = 0.2f)
-                )
+                colors = if (isFocused) {
+                    listOf(DSTWRTheme.PrimaryRed, DSTWRTheme.AccentAmber)
+                } else {
+                    listOf(
+                        DSTWRTheme.BorderSoft,
+                        DSTWRTheme.BorderSoft.copy(alpha = 0.2f)
+                    )
+                }
             )
         )
     ) {
@@ -354,14 +391,18 @@ fun ThemeOptionRow(
     isSelected: Boolean,
     onSelect: () -> Unit
 ) {
+    var isFocused by remember { mutableStateOf(false) }
+    val isHighlighted = isSelected || isFocused
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .scale(if (isFocused) 1.03f else 1.0f)
+            .onFocusChanged { isFocused = it.isFocused }
             .clip(RoundedCornerShape(14.dp))
-            .background(if (isSelected) theme.primary.copy(alpha = 0.08f) else Color.Transparent)
+            .background(if (isFocused) Color.White.copy(alpha = 0.05f) else (if (isSelected) theme.primary.copy(alpha = 0.08f) else Color.Transparent))
             .border(
                 1.dp, 
-                if (isSelected) theme.primary.copy(alpha = 0.4f) else DSTWRTheme.BorderSoft.copy(alpha = 0.4f), 
+                if (isHighlighted) theme.primary.copy(alpha = 0.6f) else DSTWRTheme.BorderSoft.copy(alpha = 0.4f), 
                 RoundedCornerShape(14.dp)
             )
             .clickable { onSelect() }
