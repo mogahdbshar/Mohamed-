@@ -199,12 +199,26 @@ class VideoPlayerState(
     }
 
     private fun handleRetry(error: PlaybackException) {
+        if (error.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW) {
+            try {
+                player?.seekToDefaultPosition()
+                player?.prepare()
+                player?.play()
+                return
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
         val isRecoverable = when (error.errorCode) {
             PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
             PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT,
             PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS,
-            PlaybackException.ERROR_CODE_IO_READ_POSITION_OUT_OF_RANGE -> true
-            else -> false
+            PlaybackException.ERROR_CODE_IO_READ_POSITION_OUT_OF_RANGE,
+            PlaybackException.ERROR_CODE_IO_UNSPECIFIED,
+            PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED,
+            PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED -> true
+            else -> true // Retry almost anything to keep IPTV running!
         }
 
         if (isRecoverable && retryCount < maxRetries) {

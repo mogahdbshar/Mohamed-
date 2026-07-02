@@ -5,20 +5,22 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.Warning
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dstwrtv.app.ui.components.DSTWRTheme
+import java.util.UUID
 
 @Composable
 fun ServerSettingsView(
@@ -33,46 +35,174 @@ fun ServerSettingsView(
     onRefreshList: (String, (Result<Int>) -> Unit) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    var playlists by remember { mutableStateOf(PlaylistStorage.getPlaylists(context)) }
+    
+    var playlistName by remember { mutableStateOf("") }
+    var inputMode by remember { mutableStateOf("m3u") }
+    
+    var m3uUrlInput by remember { mutableStateOf("") }
+    var xtreamHost by remember { mutableStateOf("") }
+    var xtreamUser by remember { mutableStateOf("") }
+    var xtreamPass by remember { mutableStateOf("") }
+
     Column(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // Section 1: Saved Playlists Manager
         GlassGroup(
-            title = "نوع الاتصال ومصدر القنوات",
-            subtitle = "اختر صيغة رابط ملف القنوات (M3U) أو اشتراكك عبر الأبي ميت لـ Xtream"
+            title = "قوائم التشغيل المحفوظة",
+            subtitle = "إدارة وتبديل مصادر قنواتك النشطة داخل التطبيق"
         ) {
-            var inputMode by remember { mutableStateOf("m3u") }
-            var xtreamHost by remember { mutableStateOf("") }
-            var xtreamUser by remember { mutableStateOf("") }
-            var xtreamPass by remember { mutableStateOf("") }
+            if (playlists.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 12.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "لا توجد قوائم تشغيل مضافة حالياً. استخدم النموذج أدناه لإضافة سيرفرك الأول.",
+                        color = DSTWRTheme.TextMuted,
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            } else {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    playlists.forEach { pl ->
+                        val isActive = pl.url == customM3uUrl
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(if (isActive) DSTWRTheme.PrimaryRed.copy(alpha = 0.1f) else DSTWRTheme.SecondaryDark)
+                                .border(
+                                    1.dp,
+                                    if (isActive) DSTWRTheme.PrimaryRed.copy(alpha = 0.4f) else DSTWRTheme.BorderSoft.copy(alpha = 0.4f),
+                                    RoundedCornerShape(12.dp)
+                                )
+                                .clickable {
+                                    onIsSavingChange(true)
+                                    onSyncIsSuccessChange(null)
+                                    onSyncStatusMessageChange("جاري تبديل وتنشيط قائمة [${pl.name}]...")
+                                    
+                                    onCustomM3uUrlChange(pl.url)
+                                    onRefreshList(pl.url) { result ->
+                                        onIsSavingChange(false)
+                                        result.onSuccess { count ->
+                                            onSyncIsSuccessChange(true)
+                                            onSyncStatusMessageChange("تم تنشيط قائمة [${pl.name}] بنجاح! تم تحميل $count قناة.")
+                                        }.onFailure { err ->
+                                            onSyncIsSuccessChange(false)
+                                            onSyncStatusMessageChange("خطأ أثناء تنشيط القائمة: ${err.message}")
+                                        }
+                                    }
+                                }
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .background(
+                                        if (isActive) DSTWRTheme.PrimaryRed.copy(alpha = 0.2f) else DSTWRTheme.SurfaceDark,
+                                        CircleShape
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = if (isActive) Icons.Rounded.Check else Icons.Rounded.List,
+                                    contentDescription = null,
+                                    tint = if (isActive) DSTWRTheme.PrimaryRed else DSTWRTheme.TextMuted,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                            
+                            Spacer(modifier = Modifier.width(12.dp))
+                            
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = pl.name,
+                                    color = Color.White,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Black
+                                )
+                                Text(
+                                    text = if (pl.type == "xtream") "اشتراك Xtream API" else "ملف M3U خارجي",
+                                    color = DSTWRTheme.TextMuted,
+                                    fontSize = 10.5.sp,
+                                    modifier = Modifier.padding(top = 1.dp)
+                                )
+                            }
 
-            LaunchedEffect(customM3uUrl) {
-                if (customM3uUrl.contains("/get.php?") && customM3uUrl.contains("username=") && customM3uUrl.contains("password=")) {
-                    try {
-                        val uri = java.net.URI(customM3uUrl)
-                        val query = uri.query ?: ""
-                        val params = query.split("&").associate {
-                            val parts = it.split("=")
-                            val key = parts.getOrNull(0) ?: ""
-                            val value = parts.getOrNull(1) ?: ""
-                            key to value
+                            IconButton(
+                                onClick = {
+                                    val updated = playlists.filter { it.id != pl.id }
+                                    playlists = updated
+                                    PlaylistStorage.savePlaylists(context, updated)
+                                    
+                                    // If deleted the active playlist, reset
+                                    if (isActive) {
+                                        onCustomM3uUrlChange("")
+                                        onRefreshList("") {}
+                                    }
+                                },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Delete,
+                                    contentDescription = "حذف",
+                                    tint = DSTWRTheme.TextMuted.copy(alpha = 0.6f),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
                         }
-                        
-                        val user = params["username"] ?: ""
-                        val pass = params["password"] ?: ""
-                        
-                        if (user.isNotBlank() && pass.isNotBlank()) {
-                            val host = customM3uUrl.substringBefore("/get.php?")
-                            xtreamHost = host
-                            xtreamUser = user
-                            xtreamPass = pass
-                            inputMode = "xtream"
-                        }
-                    } catch (e: Exception) {
-                        // Ignore parsing errors
                     }
                 }
             }
+        }
+
+        // Section 2: Add New Playlist Form
+        GlassGroup(
+            title = "إضافة قائمة تشغيل جديدة",
+            subtitle = "أدخل رابط M3U أو حساب Xtream جديد لحفظه في قائمتك"
+        ) {
+            Text(
+                text = "اسم القائمة",
+                color = DSTWRTheme.TextMain,
+                fontSize = 11.5.sp,
+                fontWeight = FontWeight.Bold
+            )
+            TextField(
+                value = playlistName,
+                onValueChange = { playlistName = it },
+                placeholder = {
+                    Text(
+                        text = "مثال: اشتراكي الخاص، باقة الرياضة...",
+                        color = DSTWRTheme.TextMuted,
+                        fontSize = 11.sp
+                    )
+                },
+                singleLine = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.2.dp, DSTWRTheme.BorderSoft, RoundedCornerShape(12.dp)),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = DSTWRTheme.SecondaryDark,
+                    unfocusedContainerColor = DSTWRTheme.SecondaryDark,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White
+                ),
+                shape = RoundedCornerShape(12.dp),
+                enabled = !isSaving
+            )
 
             Row(
                 modifier = Modifier
@@ -143,8 +273,8 @@ fun ServerSettingsView(
                 )
 
                 TextField(
-                    value = customM3uUrl,
-                    onValueChange = onCustomM3uUrlChange,
+                    value = m3uUrlInput,
+                    onValueChange = { m3uUrlInput = it },
                     placeholder = {
                         Text(
                             text = "أدخل رابط m3u الخاص بك هنا...",
@@ -311,7 +441,13 @@ fun ServerSettingsView(
             ) {
                 Button(
                     onClick = {
-                        var targetUrl = customM3uUrl
+                        if (playlistName.isBlank()) {
+                            onSyncIsSuccessChange(false)
+                            onSyncStatusMessageChange("يرجى إدخال اسم للقائمة أولاً.")
+                            return@Button
+                        }
+                        
+                        var targetUrl = m3uUrlInput.trim()
                         if (inputMode == "xtream") {
                             if (xtreamHost.isBlank() || xtreamUser.isBlank() || xtreamPass.isBlank()) {
                                 onSyncIsSuccessChange(false)
@@ -326,9 +462,8 @@ fun ServerSettingsView(
 
                             val cleanHost = xtreamHost.trim().removeSuffix("/")
                             targetUrl = "$cleanHost/get.php?username=${xtreamUser.trim()}&password=${xtreamPass.trim()}&type=m3u_plus&output=ts"
-                            onCustomM3uUrlChange(targetUrl)
                         } else {
-                            if (customM3uUrl.isNotBlank() && !customM3uUrl.startsWith("http://") && !customM3uUrl.startsWith("https://")) {
+                            if (targetUrl.isBlank() || (!targetUrl.startsWith("http://") && !targetUrl.startsWith("https://"))) {
                                 onSyncIsSuccessChange(false)
                                 onSyncStatusMessageChange("الرابط غير صالح. يرجى إدخال رابط M3U صحيح يبدأ بـ http:// أو https://")
                                 return@Button
@@ -337,12 +472,35 @@ fun ServerSettingsView(
 
                         onIsSavingChange(true)
                         onSyncIsSuccessChange(null)
-                        onSyncStatusMessageChange("جاري جلب القنوات ودمجها مع النظام...")
+                        onSyncStatusMessageChange("جاري جلب القنوات وحفظ القائمة...")
+                        
                         onRefreshList(targetUrl) { result ->
                             onIsSavingChange(false)
                             result.onSuccess { count ->
                                 onSyncIsSuccessChange(true)
                                 onSyncStatusMessageChange("تم جلب القنوات بنجاح! تم تحميل $count قناة وإضافتها بنجاح.")
+                                
+                                val newPlaylist = SavedPlaylist(
+                                    id = UUID.randomUUID().toString(),
+                                    name = playlistName.trim(),
+                                    url = targetUrl,
+                                    type = inputMode,
+                                    host = xtreamHost,
+                                    user = xtreamUser,
+                                    pass = xtreamPass
+                                )
+                                val newList = playlists + newPlaylist
+                                playlists = newList
+                                PlaylistStorage.savePlaylists(context, newList)
+                                
+                                onCustomM3uUrlChange(targetUrl)
+                                
+                                // Reset form inputs
+                                playlistName = ""
+                                m3uUrlInput = ""
+                                xtreamHost = ""
+                                xtreamUser = ""
+                                xtreamPass = ""
                             }.onFailure { err ->
                                 onSyncIsSuccessChange(false)
                                 onSyncStatusMessageChange("خطأ في الاتصال: ${err.message}")
@@ -371,7 +529,7 @@ fun ServerSettingsView(
                         )
                     } else {
                         Text(
-                            text = "حفظ ومزامنة المصدر",
+                            text = "حفظ ومزامنة القائمة",
                             color = Color.White,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Black

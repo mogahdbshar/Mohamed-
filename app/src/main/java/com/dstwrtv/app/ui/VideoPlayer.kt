@@ -8,6 +8,7 @@ import com.dstwrtv.app.core.util.findActivity
 import com.dstwrtv.app.core.util.toggleFullscreen
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.widget.FrameLayout
+import android.os.Build
 import androidx.annotation.OptIn
 import androidx.compose.animation.*
 import androidx.compose.foundation.BorderStroke
@@ -63,9 +64,16 @@ fun VideoPlayer(
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner, state, isInPipMode) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            val activity = context.findActivity()
+            val isActivityInPip = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                activity?.isInPictureInPictureMode == true
+            } else {
+                false
+            }
+            
             when (event) {
                 androidx.lifecycle.Lifecycle.Event.ON_PAUSE -> {
-                    if (!isInPipMode) {
+                    if (!isInPipMode && !isActivityInPip) {
                         wasPlaying.value = state.isPlaying
                         state.pause()
                     }
@@ -73,6 +81,11 @@ fun VideoPlayer(
                 androidx.lifecycle.Lifecycle.Event.ON_RESUME -> {
                     if (!isInPipMode && wasPlaying.value) {
                         state.play()
+                    }
+                }
+                androidx.lifecycle.Lifecycle.Event.ON_STOP -> {
+                    if (!isInPipMode && !isActivityInPip) {
+                        state.pause()
                     }
                 }
                 else -> {}

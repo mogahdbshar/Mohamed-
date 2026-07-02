@@ -68,6 +68,7 @@ fun HomeScreen(viewModel: MainViewModel, isInPipMode: Boolean = false) {
 
     var currentTab by remember { mutableStateOf("home") }
     var showSplash by remember { mutableStateOf(true) }
+    var showOnboarding by remember { mutableStateOf(!sharedPrefs.getBoolean("is_onboarded_v2_new", false)) }
     var isFullscreen by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
@@ -94,6 +95,39 @@ fun HomeScreen(viewModel: MainViewModel, isInPipMode: Boolean = false) {
 
     if (showSplash) {
         SplashView()
+    } else if (showOnboarding) {
+        OnboardingView(
+            onComplete = { url ->
+                sharedPrefs.edit()
+                    .putBoolean("is_onboarded_v2_new", true)
+                    .putBoolean("is_onboarded", true)
+                    .putString("custom_m3u_url", url)
+                    .apply()
+                showOnboarding = false
+                viewModel.syncFromNetwork(url) { result ->
+                    coroutineScope.launch {
+                        if (result.isSuccess) {
+                            snackbarHostState.showSnackbar("تم استيراد القنوات وتحديث باقات التشغيل بنجاح!")
+                        } else {
+                            snackbarHostState.showSnackbar("تم الحفظ بنجاح، البث مستمر بالذاكرة الاحتياطية")
+                        }
+                    }
+                }
+            },
+            onSkip = {
+                sharedPrefs.edit()
+                    .putBoolean("is_onboarded_v2_new", true)
+                    .putBoolean("is_onboarded", true)
+                    .putString("custom_m3u_url", "")
+                    .apply()
+                showOnboarding = false
+                viewModel.syncFromNetwork("") {
+                    coroutineScope.launch {
+                        snackbarHostState.showSnackbar("تم تفعيل باقات القنوات المدمجة بنجاح!")
+                    }
+                }
+            }
+        )
     } else {
         Box(
             modifier = Modifier
