@@ -18,12 +18,23 @@ import androidx.compose.ui.unit.sp
 @Composable
 fun DSTWRSearchBar(searchQuery: String, onSearchChange: (String) -> Unit) {
     var isFocused by remember { mutableStateOf(false) }
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+    val keyboardController = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     
     TextField(
         value = searchQuery,
         onValueChange = onSearchChange,
         placeholder = { Text("ابحث عن القنوات، المسلسلات، أو الباقات...", color = DSTWRTheme.TextMuted, fontSize = 12.sp) },
         singleLine = true,
+        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+            imeAction = androidx.compose.ui.text.input.ImeAction.Search
+        ),
+        keyboardActions = androidx.compose.foundation.text.KeyboardActions(
+            onSearch = {
+                focusManager.clearFocus()
+                keyboardController?.hide()
+            }
+        ),
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 24.dp)
@@ -51,7 +62,11 @@ fun DSTWRSearchBar(searchQuery: String, onSearchChange: (String) -> Unit) {
         },
         trailingIcon = {
             if (searchQuery.isNotEmpty()) {
-                IconButton(onClick = { onSearchChange("") }) {
+                IconButton(onClick = { 
+                    onSearchChange("") 
+                    focusManager.clearFocus()
+                    keyboardController?.hide()
+                }) {
                     Icon(Icons.Rounded.Close, contentDescription = "مسح", tint = DSTWRTheme.TextMuted, modifier = Modifier.size(18.dp))
                 }
             }

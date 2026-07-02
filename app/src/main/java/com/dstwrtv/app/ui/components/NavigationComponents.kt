@@ -8,6 +8,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
+import androidx.compose.material.icons.automirrored.rounded.List
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -137,7 +138,7 @@ fun DSTWRBottomNavigation(currentTab: String, onTabSelected: (String) -> Unit) {
                 val tabs = listOf(
                     Triple("home", "الرئيسية", Icons.Rounded.Home),
                     Triple("channels", "القنوات", Icons.Rounded.PlayArrow),
-                    Triple("bouquets", "الباقات", Icons.Rounded.List),
+                    Triple("bouquets", "الباقات", Icons.AutoMirrored.Rounded.List),
                     Triple("favorites", "المفضلة", Icons.Rounded.FavoriteBorder),
                     Triple("settings", "الإعدادات", Icons.Rounded.Settings)
                 )

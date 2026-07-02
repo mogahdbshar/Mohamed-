@@ -67,6 +67,7 @@
             android:label="@string/app_name"
             android:configChanges="orientation|keyboardHidden|screenSize|smallestScreenSize|screenLayout"
             android:supportsPictureInPicture="true"
+            android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.DSTWRTV">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

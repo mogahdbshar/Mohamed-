@@ -8,6 +8,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.List
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -188,7 +189,7 @@ fun SettingsView(
             PremiumMenuOptionCard(
                 title = "إدارة مصادر القنوات المدمجة",
                 subtitle = "التحكم في ظهور باقات المطور أو قصر العرض على ملفك",
-                icon = Icons.Rounded.List,
+                icon = Icons.AutoMirrored.Rounded.List,
                 iconColor = Color(0xFF10B981),
                 onClick = { activeSubPage = "sources" }
             )

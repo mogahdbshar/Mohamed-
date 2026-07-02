@@ -4,6 +4,9 @@ import com.dstwrtv.app.model.Channel
 
 class M3UParser {
 
+    private val logoRegex = Regex("""tvg-logo=["']([^"']+)["']""", RegexOption.IGNORE_CASE)
+    private val groupRegex = Regex("""group-title=["']([^"']+)["']""", RegexOption.IGNORE_CASE)
+
     fun parse(m3uContent: String, defaultCategory: String = "القنوات المضافة"): List<Channel> {
         val channels = mutableListOf<Channel>()
         val lines = m3uContent.split("\n")
@@ -26,11 +29,11 @@ class M3UParser {
                 }
 
                 // Parse Logo
-                val logoMatch = Regex("""tvg-logo=["']([^"']+)["']""", RegexOption.IGNORE_CASE).find(trimmedLine)
+                val logoMatch = logoRegex.find(trimmedLine)
                 currentLogo = logoMatch?.groupValues?.get(1) ?: ""
 
                 // Parse Group/Category
-                val groupMatch = Regex("""group-title=["']([^"']+)["']""", RegexOption.IGNORE_CASE).find(trimmedLine)
+                val groupMatch = groupRegex.find(trimmedLine)
                 currentGroup = groupMatch?.groupValues?.get(1) ?: defaultCategory
             } else if (trimmedLine.startsWith("http", ignoreCase = true)) {
                 val finalUrl = trimmedLine

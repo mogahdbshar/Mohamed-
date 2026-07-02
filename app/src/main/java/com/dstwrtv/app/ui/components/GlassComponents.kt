@@ -163,7 +163,7 @@ fun GlassDialog(
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
-                Divider(color = DSTWRTheme.BorderSoft.copy(alpha = 0.5f), thickness = 1.dp)
+                HorizontalDivider(color = DSTWRTheme.BorderSoft.copy(alpha = 0.5f), thickness = 1.dp)
                 Spacer(modifier = Modifier.height(16.dp))
 
                 content()

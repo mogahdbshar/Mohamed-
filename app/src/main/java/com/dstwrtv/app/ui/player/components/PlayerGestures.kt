@@ -7,9 +7,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.VolumeDown
-import androidx.compose.material.icons.rounded.VolumeOff
-import androidx.compose.material.icons.rounded.VolumeUp
+import androidx.compose.material.icons.automirrored.rounded.VolumeDown
+import androidx.compose.material.icons.automirrored.rounded.VolumeOff
+import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.WbSunny
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
@@ -45,7 +45,7 @@ fun GestureOverlay(
             ) {
                 Icon(
                     imageVector = if (gestureType == "brightness") Icons.Rounded.WbSunny else {
-                        if (gestureValue == 0f) Icons.Rounded.VolumeOff else if (gestureValue < 0.5f) Icons.Rounded.VolumeDown else Icons.Rounded.VolumeUp
+                        if (gestureValue == 0f) Icons.AutoMirrored.Rounded.VolumeOff else if (gestureValue < 0.5f) Icons.AutoMirrored.Rounded.VolumeDown else Icons.AutoMirrored.Rounded.VolumeUp
                     },
                     contentDescription = null,
                     tint = Color.White,

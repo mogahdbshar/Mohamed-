@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -42,6 +43,10 @@ fun OnboardingView(
     modifier: Modifier = Modifier
 ) {
     var step by remember { mutableStateOf(OnboardingStep.SELECTOR) }
+    
+    val keyboardController = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+    
     var m3uUrl by remember { mutableStateOf("") }
     var xtreamHost by remember { mutableStateOf("") }
     var xtreamUser by remember { mutableStateOf("") }
@@ -214,6 +219,8 @@ fun OnboardingView(
                                             errorMessage = "يرجى إدخال رابط M3U صحيح يبدأ بـ http:// أو https://"
                                             return@Button
                                         }
+                                        keyboardController?.hide()
+                                        focusManager.clearFocus()
                                         isLoading = true
                                         errorMessage = null
                                         onComplete(m3uUrl.trim())
@@ -349,6 +356,8 @@ fun OnboardingView(
                                             return@Button
                                         }
                                         
+                                        keyboardController?.hide()
+                                        focusManager.clearFocus()
                                         isLoading = true
                                         errorMessage = null
                                         val cleanHost = xtreamHost.trim().removeSuffix("/")
@@ -481,7 +490,7 @@ fun OnboardingCardOption(
                 )
             }
             Icon(
-                imageVector = Icons.Rounded.KeyboardArrowLeft,
+                imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowLeft,
                 contentDescription = null,
                 tint = DSTWRTheme.TextMuted.copy(alpha = 0.5f),
                 modifier = Modifier.size(20.dp)

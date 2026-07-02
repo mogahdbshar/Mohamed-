@@ -225,7 +225,7 @@ fun HomeScreen(viewModel: MainViewModel, isInPipMode: Boolean = false) {
                                 )
                                 "favorites" -> FavoritesView(favorites = favorites, selectedChannel = selectedChannel, onChannelSelect = viewModel::selectChannel, onToggleFavorite = viewModel::toggleFavorite)
                                 "settings" -> SettingsView(
-                                    onRefreshList = { url, onCompleted -> viewModel.selectChannel(null); viewModel.syncFromNetwork(url, onResult = onCompleted) }, 
+                                    onRefreshList = { url, onCompleted -> viewModel.selectChannel(null); viewModel.syncFromNetwork(url, bypassCache = true, onResult = onCompleted) }, 
                                     isLoading = isLoading, favoritesCount = favorites.size, totalChannelsCount = channels.size, ambientGlowEnabled = ambientGlowEnabled, 
                                     onAmbientGlowChange = { ambientGlowEnabled = it; sharedPrefs.edit().putBoolean("ambient_glow_enabled", it).apply() }, 
                                     activeThemeId = activeThemeId, onThemeChange = { activeThemeId = it; sharedPrefs.edit().putString("selected_theme_id", it).apply() }, 

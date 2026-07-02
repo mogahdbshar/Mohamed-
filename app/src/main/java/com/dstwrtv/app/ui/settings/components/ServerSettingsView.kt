@@ -9,6 +9,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
+import androidx.compose.material.icons.automirrored.rounded.List
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -36,6 +37,8 @@ fun ServerSettingsView(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val keyboardController = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
     var playlists by remember { mutableStateOf(PlaylistStorage.getPlaylists(context)) }
     
     var playlistName by remember { mutableStateOf("") }
@@ -87,6 +90,8 @@ fun ServerSettingsView(
                                     RoundedCornerShape(12.dp)
                                 )
                                 .clickable {
+                                    keyboardController?.hide()
+                                    focusManager.clearFocus()
                                     onIsSavingChange(true)
                                     onSyncIsSuccessChange(null)
                                     onSyncStatusMessageChange("جاري تبديل وتنشيط قائمة [${pl.name}]...")
@@ -116,7 +121,7 @@ fun ServerSettingsView(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
-                                    imageVector = if (isActive) Icons.Rounded.Check else Icons.Rounded.List,
+                                    imageVector = if (isActive) Icons.Rounded.Check else Icons.AutoMirrored.Rounded.List,
                                     contentDescription = null,
                                     tint = if (isActive) DSTWRTheme.PrimaryRed else DSTWRTheme.TextMuted,
                                     modifier = Modifier.size(16.dp)
@@ -441,6 +446,8 @@ fun ServerSettingsView(
             ) {
                 Button(
                     onClick = {
+                        keyboardController?.hide()
+                        focusManager.clearFocus()
                         if (playlistName.isBlank()) {
                             onSyncIsSuccessChange(false)
                             onSyncStatusMessageChange("يرجى إدخال اسم للقائمة أولاً.")

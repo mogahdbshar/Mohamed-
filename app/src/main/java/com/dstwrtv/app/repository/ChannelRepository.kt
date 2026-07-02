@@ -225,7 +225,7 @@ class ChannelRepository(
         resultBody
     }
 
-    suspend fun syncChannels(passedCustomUrl: String? = null): Result<Int> = withContext(Dispatchers.IO) {
+    suspend fun syncChannels(passedCustomUrl: String? = null, bypassCache: Boolean = false): Result<Int> = withContext(Dispatchers.IO) {
         try {
             if (passedCustomUrl != null) {
                 val candidate = passedCustomUrl.trim()
@@ -233,55 +233,85 @@ class ChannelRepository(
             }
             
             val activeCustomUrl = settingsManager.customM3uUrl
+            val sourceMode = settingsManager.sourceMode
+            val showDev = settingsManager.showDevPackage
             
-            // 2. Fetch System Configuration
+            val shouldBypass = bypassCache || (passedCustomUrl != null)
+
             var systemChannels = emptyList<Channel>()
-            try {
-                val officialUrl = "https://raw.githubusercontent.com/mogahdbshar/app-core-assets/refs/heads/main/system_config.dat"
-                val bodyString = fetchUrlWithRedirects(officialUrl)
-                if (bodyString.isNotBlank()) {
-                    val decryptedJson = CryptoHelper.decrypt(bodyString.trim()) ?: throw Exception("decryption failed")
-                    val rawList = adapter.fromJson(decryptedJson) ?: emptyList()
-                    
-                    systemChannels = rawList.filter { isFamilyFriendly(it) }
-                        .map { channel ->
-                            val cleanName = channel.name.trim()
-                            channel.copy(
-                                name = cleanName,
-                                category = determinePackage(cleanName, channel.logo)
-                            )
-                        }
+            val customChannels = mutableListOf<Channel>()
+
+            // 1. Fetch System Configuration ONLY if needed (merged or dev_only)
+            val needSystem = (sourceMode == "merged" || sourceMode == "dev_only") && showDev
+            if (needSystem) {
+                try {
+                    val officialUrl = "https://raw.githubusercontent.com/mogahdbshar/app-core-assets/refs/heads/main/system_config.dat"
+                    val bodyString = fetchUrlWithRedirects(officialUrl, bypassCache = shouldBypass)
+                    if (bodyString.isNotBlank()) {
+                        val decryptedJson = CryptoHelper.decrypt(bodyString.trim()) ?: throw Exception("decryption failed")
+                        val rawList = adapter.fromJson(decryptedJson) ?: emptyList()
+                        
+                        systemChannels = rawList.filter { isFamilyFriendly(it) }
+                            .map { channel ->
+                                val cleanName = channel.name.trim()
+                                channel.copy(
+                                    name = cleanName,
+                                    category = determinePackage(cleanName, channel.logo)
+                                )
+                            }
+                    } else {
+                        systemChannels = fallbackChannels
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    systemChannels = fallbackChannels
                 }
-            } catch (e: Exception) {
-                e.printStackTrace()
-                systemChannels = fallbackChannels
             }
 
-            // 3. Fetch Custom Playlist
-            val customChannels = mutableListOf<Channel>()
-            if (!activeCustomUrl.isNullOrBlank()) {
+            // 2. Fetch Custom Playlist ONLY if needed (merged or user_only)
+            val needCustom = (sourceMode == "merged" || sourceMode == "user_only")
+            var customFetchException: Exception? = null
+
+            if (needCustom && !activeCustomUrl.isNullOrBlank()) {
                 try {
-                    val body = fetchUrlWithRedirects(activeCustomUrl)
+                    val body = fetchUrlWithRedirects(activeCustomUrl, bypassCache = shouldBypass)
                     if (body.isNotBlank()) {
                         val parsed = parser.parse(body, "القنوات المضافة")
                         customChannels.addAll(parsed.filter { isFamilyFriendly(it) }.map {
                             it.copy(category = parser.cleanCategory(it.category))
                         })
+                    } else {
+                        if (passedCustomUrl != null) {
+                            throw Exception("ملف القنوات فارغ أو غير صالح.")
+                        }
                     }
                 } catch (e: Exception) {
-                    if (passedCustomUrl != null) throw e
+                    e.printStackTrace()
+                    customFetchException = e
+                    if (passedCustomUrl != null) {
+                        throw e
+                    }
                 }
             }
 
-            // 4. Merge and Sync
-            val sourceMode = settingsManager.sourceMode
-            val showDev = settingsManager.showDevPackage
-            
-            val finalSystem = if ((sourceMode == "merged" || sourceMode == "dev_only") && showDev) systemChannels else emptyList()
-            val finalCustom = if (sourceMode == "merged" || sourceMode == "user_only") customChannels else emptyList()
+            // If we specifically wanted custom channels but the URL is blank
+            if (sourceMode == "user_only" && activeCustomUrl.isNullOrBlank()) {
+                if (passedCustomUrl != null) {
+                    throw Exception("رابط ملف القنوات فارغ.")
+                }
+            }
+
+            // 3. Merge and Sync
+            val finalSystem = if (needSystem) systemChannels else emptyList()
+            val finalCustom = if (needCustom) customChannels else emptyList()
 
             val mergedList = (finalSystem + finalCustom).distinctBy { it.url }
             channelDao.syncChannels(mergedList)
+
+            // If custom fetch failed and we are in user_only, we should propagate that failure
+            if (sourceMode == "user_only" && customFetchException != null) {
+                throw customFetchException
+            }
             
             Result.success(customChannels.size)
         } catch (e: Exception) {
@@ -292,11 +322,17 @@ class ChannelRepository(
                 else -> e.localizedMessage ?: "حدث خطأ أثناء مزامنة البيانات."
             }
             
-            if (channelDao.getChannelsCount() == 0) {
-                channelDao.syncChannels(fallbackChannels)
-                Result.failure(Exception("$arabicError (تم تحميل قنوات الطوارئ)"))
+            val sourceMode = settingsManager.sourceMode
+            if (sourceMode == "user_only") {
+                // For user_only, do not fall back to developer channels! Return failure directly so user knows why.
+                Result.failure(Exception(arabicError))
             } else {
-                Result.failure(Exception("$arabicError (عرض البيانات المخزنة)"))
+                if (channelDao.getChannelsCount() == 0) {
+                    channelDao.syncChannels(fallbackChannels)
+                    Result.failure(Exception("$arabicError (تم تحميل قنوات الطوارئ)"))
+                } else {
+                    Result.failure(Exception("$arabicError (عرض البيانات المخزنة)"))
+                }
             }
         }
     }

@@ -79,11 +79,11 @@ class MainViewModel(private val app: Application, private val repository: Channe
         }
     }
 
-    fun syncFromNetwork(customUrl: String? = null, onResult: ((Result<Int>) -> Unit)? = null) {
+    fun syncFromNetwork(customUrl: String? = null, bypassCache: Boolean = false, onResult: ((Result<Int>) -> Unit)? = null) {
         viewModelScope.launch {
             _syncState.value = SyncUiState.Loading
             
-            val result = repository.syncChannels(customUrl)
+            val result = repository.syncChannels(customUrl, bypassCache = bypassCache || (customUrl != null))
             result.onSuccess { loadedCount ->
                 _syncState.value = SyncUiState.Success(loadedCount)
                 onResult?.invoke(Result.success(loadedCount))
