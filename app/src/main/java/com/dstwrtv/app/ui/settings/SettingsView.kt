@@ -104,7 +104,10 @@ fun SettingsView(
                 "server" -> {
                     ServerSettingsView(
                         customM3uUrl = customM3uUrl,
-                        onCustomM3uUrlChange = { customM3uUrl = it },
+                        onCustomM3uUrlChange = { url ->
+                            customM3uUrl = url
+                            sharedPrefs.edit().putString("custom_m3u_url", url).apply()
+                        },
                         isSaving = isSaving,
                         onIsSavingChange = { isSaving = it },
                         syncStatusMessage = syncStatusMessage,
