@@ -16,7 +16,8 @@ import java.util.Locale
 
 class ChannelRepository(
     private val channelDao: ChannelDao,
-    private val settingsManager: SettingsManager
+    private val settingsManager: SettingsManager,
+    private val remoteConfigManager: com.dstwrtv.app.core.settings.RemoteConfigManager
 ) {
 
     val allChannels: Flow<List<Channel>> = channelDao.getAllChannelsFlow()
@@ -242,10 +243,14 @@ class ChannelRepository(
             val customChannels = mutableListOf<Channel>()
 
             // 1. Fetch System Configuration ONLY if needed (merged or dev_only)
-            val needSystem = (sourceMode == "merged" || sourceMode == "dev_only") && showDev
+            val needSystem = (sourceMode == "merged" || sourceMode == "dev_only") && showDev && remoteConfigManager.enableDeveloperChannels
             if (needSystem) {
                 try {
-                    val officialUrl = "https://raw.githubusercontent.com/mogahdbshar/app-core-assets/refs/heads/main/system_config.dat"
+                    val officialUrl = if (remoteConfigManager.remoteM3uUrl.isNotBlank()) {
+                        remoteConfigManager.remoteM3uUrl
+                    } else {
+                        "https://raw.githubusercontent.com/mogahdbshar/app-core-assets/refs/heads/main/system_config.dat"
+                    }
                     val bodyString = fetchUrlWithRedirects(officialUrl, bypassCache = shouldBypass)
                     if (bodyString.isNotBlank()) {
                         val decryptedJson = CryptoHelper.decrypt(bodyString.trim()) ?: throw Exception("decryption failed")

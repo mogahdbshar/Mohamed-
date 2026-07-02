@@ -103,6 +103,9 @@ fun DSTWRHeader(onActionClick: () -> Unit) {
 
 @Composable
 fun DSTWRBottomNavigation(currentTab: String, onTabSelected: (String) -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val remoteConfigManager = remember { (context.applicationContext as com.dstwrtv.app.DstwrApplication).remoteConfigManager }
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -135,13 +138,19 @@ fun DSTWRBottomNavigation(currentTab: String, onTabSelected: (String) -> Unit) {
                 horizontalArrangement = Arrangement.SpaceAround,
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                val hiddenTabsList = remember(remoteConfigManager.hiddenTabs) {
+                    remoteConfigManager.hiddenTabs.split(",")
+                        .map { it.trim().lowercase() }
+                        .filter { it.isNotBlank() }
+                }
+
                 val tabs = listOf(
                     Triple("home", "الرئيسية", Icons.Rounded.Home),
                     Triple("channels", "القنوات", Icons.Rounded.PlayArrow),
                     Triple("bouquets", "الباقات", Icons.AutoMirrored.Rounded.List),
                     Triple("favorites", "المفضلة", Icons.Rounded.FavoriteBorder),
                     Triple("settings", "الإعدادات", Icons.Rounded.Settings)
-                )
+                ).filter { (tabId, _, _) -> !hiddenTabsList.contains(tabId) }
                 
                 tabs.forEach { (tabId, label, icon) ->
                     val isActive = currentTab == tabId

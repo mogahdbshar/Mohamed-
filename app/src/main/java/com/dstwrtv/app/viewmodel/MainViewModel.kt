@@ -70,8 +70,18 @@ class MainViewModel(private val app: Application, private val repository: Channe
     }.flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val remoteConfigManager = (app as com.dstwrtv.app.DstwrApplication).remoteConfigManager
+
     init {
         viewModelScope.launch {
+            // Fetch remote configuration silently from GitHub or custom URL
+            remoteConfigManager.fetchConfig()
+            
+            // Send initial ping to register user session
+            try {
+                (app as com.dstwrtv.app.DstwrApplication).telemetryReporter.reportPing(remoteConfigManager, "active")
+            } catch (e: Exception) { e.printStackTrace() }
+            
             val count = repository.getChannelsCount()
             if (count == 0) {
                 syncFromNetwork()
@@ -110,6 +120,10 @@ class MainViewModel(private val app: Application, private val repository: Channe
 
     fun selectChannel(channel: Channel?) {
         _selectedChannel.value = channel
+        try {
+            val status = if (channel != null) "watching" else "idle"
+            (app as com.dstwrtv.app.DstwrApplication).telemetryReporter.reportPing(remoteConfigManager, status, channel?.name)
+        } catch (e: Exception) { e.printStackTrace() }
     }
 
     fun setSearchQuery(query: String) {

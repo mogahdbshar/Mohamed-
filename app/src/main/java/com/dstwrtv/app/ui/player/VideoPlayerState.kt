@@ -104,14 +104,26 @@ class VideoPlayerState(
             // Use the original context directly to prevent AppOps attribution errors and audio/video issues
             val mediaContext = ctx
 
+            val remoteConfigManager = (ctx.applicationContext as com.dstwrtv.app.DstwrApplication).remoteConfigManager
+            val customUserAgent = if (remoteConfigManager.userAgentOverride.isNotBlank()) {
+                remoteConfigManager.userAgentOverride
+            } else {
+                "DSTWRTV/2.1.0/Android"
+            }
+            val customReferer = if (remoteConfigManager.refererOverride.isNotBlank()) {
+                remoteConfigManager.refererOverride
+            } else {
+                "http://12k-service.org/"
+            }
+
             val httpDataSourceFactory = DefaultHttpDataSource.Factory()
-                .setUserAgent("DSTWRTV/2.1.0/Android")
+                .setUserAgent(customUserAgent)
                 .setAllowCrossProtocolRedirects(true)
                 .setConnectTimeoutMs(15000)
                 .setReadTimeoutMs(15000)
                 .setDefaultRequestProperties(mapOf(
-                    "Referer" to "http://12k-service.org/",
-                    "User-Agent" to "DSTWRTV/2.1.0/Android"
+                    "Referer" to customReferer,
+                    "User-Agent" to customUserAgent
                 ))
             
             val mediaSourceFactory = DefaultMediaSourceFactory(mediaContext)

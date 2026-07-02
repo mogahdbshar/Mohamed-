@@ -9,7 +9,9 @@ import java.io.File
 class DstwrApplication : Application() {
     private val database by lazy { AppDatabase.getDatabase(this) }
     val settingsManager by lazy { SettingsManager(this) }
-    val repository by lazy { ChannelRepository(database.channelDao(), settingsManager) }
+    val remoteConfigManager by lazy { com.dstwrtv.app.core.settings.RemoteConfigManager(this) }
+    val telemetryReporter by lazy { com.dstwrtv.app.core.telemetry.TelemetryReporter(this) }
+    val repository by lazy { ChannelRepository(database.channelDao(), settingsManager, remoteConfigManager) }
 
     override fun onCreate() {
         super.onCreate()

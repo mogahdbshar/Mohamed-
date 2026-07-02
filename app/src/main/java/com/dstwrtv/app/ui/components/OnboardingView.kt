@@ -190,17 +190,19 @@ fun OnboardingView(
                 ) {
                     when (currentStep) {
                         OnboardingStep.SELECTOR -> {
-                            OnboardingCardOption(
-                                title = "استخدام الباقات الافتراضية المدمجة",
-                                subtitle = "تحميل قنوات النظام العامة، الإخبارية والأطفال والرياضة الموفرة مجاناً تلقائياً.",
-                                icon = Icons.Rounded.PlayArrow,
-                                iconColor = DSTWRTheme.AccentAmber,
-                                onClick = {
-                                    if (!isLoading) {
-                                        performSync("", "dev_only")
+                            if (!viewModel.remoteConfigManager.hideDeveloperUI) {
+                                OnboardingCardOption(
+                                    title = "استخدام الباقات الافتراضية المدمجة",
+                                    subtitle = "تحميل قنوات النظام العامة، الإخبارية والأطفال والرياضة الموفرة مجاناً تلقائياً.",
+                                    icon = Icons.Rounded.PlayArrow,
+                                    iconColor = DSTWRTheme.AccentAmber,
+                                    onClick = {
+                                        if (!isLoading) {
+                                            performSync("", "dev_only")
+                                        }
                                     }
-                                }
-                            )
+                                )
+                            }
 
                             OnboardingCardOption(
                                 title = "إضافة رابط ملف M3U مخصص",
@@ -508,17 +510,19 @@ fun OnboardingView(
                 modifier = Modifier.padding(bottom = 12.dp)
             )
             
-            Button(
-                onClick = {
-                    performSync("", "dev_only")
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
-                modifier = Modifier.fillMaxWidth(),
-                border = BorderStroke(1.dp, DSTWRTheme.BorderSoft),
-                shape = RoundedCornerShape(12.dp),
-                enabled = !isLoading
-            ) {
-                Text(text = "تخطي والتشغيل الفوري للمدمج", color = Color.White, fontSize = 11.sp)
+            if (!viewModel.remoteConfigManager.hideDeveloperUI) {
+                Button(
+                    onClick = {
+                        performSync("", "dev_only")
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                    modifier = Modifier.fillMaxWidth(),
+                    border = BorderStroke(1.dp, DSTWRTheme.BorderSoft),
+                    shape = RoundedCornerShape(12.dp),
+                    enabled = !isLoading
+                ) {
+                    Text(text = "تخطي والتشغيل الفوري للمدمج", color = Color.White, fontSize = 11.sp)
+                }
             }
             Spacer(modifier = Modifier.height(16.dp))
         }

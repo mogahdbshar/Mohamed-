@@ -9,10 +9,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -38,32 +40,56 @@ fun HomeView(
     favorites: List<Channel>,
     onSwitchTab: (String, String?) -> Unit
 ) {
-    val dynamicGroups = remember(channels, searchQuery) {
-        val filtered = if (searchQuery.isBlank()) {
-            channels
-        } else {
-            val norm = com.dstwrtv.app.core.util.ArabicUtils.normalize(searchQuery)
-            val terms = norm.split(" ").filter { it.isNotBlank() }
-            
-            channels.filter { ch ->
-                val targetName = com.dstwrtv.app.core.util.ArabicUtils.normalize(ch.name)
-                val targetCat = com.dstwrtv.app.core.util.ArabicUtils.normalize(ch.category)
-                terms.all { targetName.contains(it) || targetCat.contains(it) }
-            }
-        }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val remoteConfigManager = remember { (context.applicationContext as com.dstwrtv.app.DstwrApplication).remoteConfigManager }
 
-        filtered.groupBy { it.category }.toList()
-            .filter { it.first.lowercase() != "dev-hidden" }
-            .sortedWith(compareByDescending<Pair<String, List<Channel>>> { 
-                val name = it.first.lowercase()
-                when {
-                    name.contains("رياض") || name.contains("sport") -> 100
-                    name.contains("عرب") && (name.contains("رياض") || name.contains("sport")) -> 110
-                    name.contains("مسلسل") || name.contains("series") -> 80
-                    name.contains("عرب") -> 70
-                    else -> 0
+    val dynamicGroups = remember(channels, searchQuery, remoteConfigManager.hideAllChannels, remoteConfigManager.hiddenCategories, remoteConfigManager.hiddenChannels) {
+        if (remoteConfigManager.hideAllChannels) {
+            emptyList()
+        } else {
+            val hideCats = remoteConfigManager.hiddenCategories.split(",")
+                .map { it.trim().lowercase() }
+                .filter { it.isNotBlank() }
+            val hideChs = remoteConfigManager.hiddenChannels.split(",")
+                .map { it.trim().lowercase() }
+                .filter { it.isNotBlank() }
+
+            val initialFiltered = if (searchQuery.isBlank()) {
+                channels
+            } else {
+                val norm = com.dstwrtv.app.core.util.ArabicUtils.normalize(searchQuery)
+                val terms = norm.split(" ").filter { it.isNotBlank() }
+                
+                channels.filter { ch ->
+                    val targetName = com.dstwrtv.app.core.util.ArabicUtils.normalize(ch.name)
+                    val targetCat = com.dstwrtv.app.core.util.ArabicUtils.normalize(ch.category)
+                    terms.all { targetName.contains(it) || targetCat.contains(it) }
                 }
-            }.thenByDescending { it.second.size })
+            }
+
+            val filtered = initialFiltered.filter { ch ->
+                val catLower = ch.category.lowercase()
+                val nameLower = ch.name.lowercase()
+                
+                val isCatHidden = hideCats.any { catLower.contains(it) || it.contains(catLower) }
+                val isChHidden = hideChs.any { nameLower.contains(it) || it.contains(nameLower) }
+                
+                !isCatHidden && !isChHidden
+            }
+
+            filtered.groupBy { it.category }.toList()
+                .filter { it.first.lowercase() != "dev-hidden" }
+                .sortedWith(compareByDescending<Pair<String, List<Channel>>> { 
+                    val name = it.first.lowercase()
+                    when {
+                        name.contains("رياض") || name.contains("sport") -> 100
+                        name.contains("عرب") && (name.contains("رياض") || name.contains("sport")) -> 110
+                        name.contains("مسلسل") || name.contains("series") -> 80
+                        name.contains("عرب") -> 70
+                        else -> 0
+                    }
+                }.thenByDescending { it.second.size })
+        }
     }
 
     LazyColumn(
@@ -138,6 +164,109 @@ fun HomeView(
         item {
             DSTWRSearchBar(searchQuery = searchQuery, onSearchChange = onSearchChange)
             Spacer(modifier = Modifier.height(10.dp))
+        }
+
+        if (remoteConfigManager.enableAds && (remoteConfigManager.customAdDisplayLocation == "home" || remoteConfigManager.customAdDisplayLocation == "both")) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(DSTWRTheme.PrimaryRed.copy(alpha = 0.25f), DSTWRTheme.SurfaceDark)
+                            )
+                        )
+                        .border(BorderStroke(1.dp, DSTWRTheme.BorderSoft), RoundedCornerShape(16.dp))
+                        .clickable {
+                            try {
+                                val urlToOpen = remoteConfigManager.customAdClickUrl.ifBlank { "https://t.me/your_telegram_channel" }
+                                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(urlToOpen))
+                                context.startActivity(intent)
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                            }
+                        }
+                        .padding(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(DSTWRTheme.AccentAmber)
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Text("إعلان ممول", color = Color.Black, fontSize = 9.sp, fontWeight = FontWeight.Black)
+                            }
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = "اشترك في الباقات المميزة أو زر موقع الشريك الرسمي لتجربة خالية من التقطيع وبجودة فائقة!",
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 2,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Icon(
+                            imageVector = Icons.Rounded.PlayArrow,
+                            contentDescription = null,
+                            tint = DSTWRTheme.AccentAmber,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                }
+            }
+        }
+
+        if (dynamicGroups.isEmpty()) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 40.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Color(0xFF111216))
+                        .border(BorderStroke(1.dp, DSTWRTheme.BorderSoft), RoundedCornerShape(20.dp))
+                        .padding(24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Warning,
+                            contentDescription = null,
+                            tint = DSTWRTheme.PrimaryRed,
+                            modifier = Modifier.size(48.dp)
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = if (remoteConfigManager.hideAllChannels) "تنبيه من الإدارة" else "لا توجد قنوات متوفرة",
+                            color = Color.White,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = if (remoteConfigManager.hideAllChannels) "تم إيقاف عرض القنوات مؤقتاً لأسباب تقنية أو صيانة مجدولة. يرجى الانتظار أو مراجعة الدعم الفني." else "لم يتم العثور على أي قنوات تناسب خيارات البحث أو الفلاتر الحالية.",
+                            color = DSTWRTheme.TextMuted,
+                            fontSize = 13.sp,
+                            textAlign = TextAlign.Center,
+                            lineHeight = 20.sp
+                        )
+                    }
+                }
+            }
         }
 
         items(dynamicGroups, key = { it.first }) { (bouquetName, groupChannels) ->

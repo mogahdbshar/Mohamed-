@@ -44,6 +44,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun HomeScreen(viewModel: MainViewModel, isInPipMode: Boolean = false) {
     val context = LocalContext.current
+    val remoteConfigManager = remember { viewModel.remoteConfigManager }
     val sharedPrefs = remember { context.getSharedPreferences("dstwr_prefs", android.content.Context.MODE_PRIVATE) }
     var ambientGlowEnabled by remember { mutableStateOf(sharedPrefs.getBoolean("ambient_glow_enabled", true)) }
     var activeThemeId by remember { mutableStateOf(sharedPrefs.getString("selected_theme_id", "crimson_gold") ?: "crimson_gold") }
@@ -68,7 +69,9 @@ fun HomeScreen(viewModel: MainViewModel, isInPipMode: Boolean = false) {
 
     var currentTab by remember { mutableStateOf("home") }
     var showSplash by remember { mutableStateOf(true) }
-    var showOnboarding by remember { mutableStateOf(!sharedPrefs.getBoolean("is_onboarded_v2_new", false)) }
+    var showOnboarding by remember(remoteConfigManager.showOnboardingAlways) { 
+        mutableStateOf(!sharedPrefs.getBoolean("is_onboarded_v2_new", false) || remoteConfigManager.showOnboardingAlways) 
+    }
     var isFullscreen by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
@@ -95,17 +98,19 @@ fun HomeScreen(viewModel: MainViewModel, isInPipMode: Boolean = false) {
 
     if (showSplash) {
         SplashView()
-    } else if (showOnboarding) {
-        OnboardingView(
-            viewModel = viewModel,
-            onComplete = {
-                showOnboarding = false
-                coroutineScope.launch {
-                    snackbarHostState.showSnackbar("تمت مزامنة وتفعيل الباقات بنجاح!")
-                }
-            }
-        )
     } else {
+        RemoteControlProtectionOverlay(config = remoteConfigManager) {
+            if (showOnboarding) {
+                OnboardingView(
+                    viewModel = viewModel,
+                    onComplete = {
+                        showOnboarding = false
+                        coroutineScope.launch {
+                            snackbarHostState.showSnackbar("تمت مزامنة وتفعيل الباقات بنجاح!")
+                        }
+                    }
+                )
+            } else {
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -224,5 +229,7 @@ fun HomeScreen(viewModel: MainViewModel, isInPipMode: Boolean = false) {
                 PremiumSnackbarHost(hostState = snackbarHostState)
             }
         }
+    }
+    }
     }
 }

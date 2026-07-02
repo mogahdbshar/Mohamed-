@@ -35,6 +35,7 @@ fun SettingsView(
     onShowNotification: (String) -> Unit
 ) {
     val context = LocalContext.current
+    val remoteConfigManager = remember { (context.applicationContext as com.dstwrtv.app.DstwrApplication).remoteConfigManager }
     var activeSubPage by remember { mutableStateOf<String?>(null) }
     
     var useHardwareAcceleration by remember { mutableStateOf(true) }
@@ -43,8 +44,11 @@ fun SettingsView(
     val sharedPrefs = remember { context.getSharedPreferences("dstwr_prefs", android.content.Context.MODE_PRIVATE) }
     var customM3uUrl by remember { mutableStateOf(sharedPrefs.getString("custom_m3u_url", "") ?: "") }
     
-    var sourceMode by remember { mutableStateOf(sharedPrefs.getString("source_mode", "merged") ?: "merged") }
-    var showDevPackage by remember { mutableStateOf(sharedPrefs.getBoolean("show_dev_package", true)) }
+    val defaultSourceMode = if (remoteConfigManager.hideDeveloperUI) "user_only" else (sharedPrefs.getString("source_mode", "merged") ?: "merged")
+    val defaultShowDev = if (remoteConfigManager.hideDeveloperUI) false else sharedPrefs.getBoolean("show_dev_package", true)
+
+    var sourceMode by remember(remoteConfigManager.hideDeveloperUI) { mutableStateOf(defaultSourceMode) }
+    var showDevPackage by remember(remoteConfigManager.hideDeveloperUI) { mutableStateOf(defaultShowDev) }
 
     var isSaving by remember { mutableStateOf(false) }
     var syncStatusMessage by remember { mutableStateOf<String?>(null) }
@@ -189,13 +193,15 @@ fun SettingsView(
                 iconColor = DSTWRTheme.AccentAmber,
                 onClick = { activeSubPage = "quality" }
             )
-            PremiumMenuOptionCard(
-                title = "إدارة مصادر القنوات المدمجة",
-                subtitle = "التحكم في ظهور باقات المطور أو قصر العرض على ملفك",
-                icon = Icons.AutoMirrored.Rounded.List,
-                iconColor = Color(0xFF10B981),
-                onClick = { activeSubPage = "sources" }
-            )
+            if (!remoteConfigManager.hideDeveloperUI) {
+                PremiumMenuOptionCard(
+                    title = "إدارة مصادر القنوات المدمجة",
+                    subtitle = "التحكم في ظهور باقات المطور أو قصر العرض على ملفك",
+                    icon = Icons.AutoMirrored.Rounded.List,
+                    iconColor = Color(0xFF10B981),
+                    onClick = { activeSubPage = "sources" }
+                )
+            }
             PremiumMenuOptionCard(
                 title = "الخصوصية والاتفاقية الأمنية",
                 subtitle = "دليل حماية البيانات ومعلومات التشغيل الآمن",
