@@ -97,34 +97,11 @@ fun HomeScreen(viewModel: MainViewModel, isInPipMode: Boolean = false) {
         SplashView()
     } else if (showOnboarding) {
         OnboardingView(
-            onComplete = { url ->
-                sharedPrefs.edit()
-                    .putBoolean("is_onboarded_v2_new", true)
-                    .putBoolean("is_onboarded", true)
-                    .putString("custom_m3u_url", url)
-                    .apply()
+            viewModel = viewModel,
+            onComplete = {
                 showOnboarding = false
-                viewModel.syncFromNetwork(url) { result ->
-                    coroutineScope.launch {
-                        if (result.isSuccess) {
-                            snackbarHostState.showSnackbar("تم استيراد القنوات وتحديث باقات التشغيل بنجاح!")
-                        } else {
-                            snackbarHostState.showSnackbar("تم الحفظ بنجاح، البث مستمر بالذاكرة الاحتياطية")
-                        }
-                    }
-                }
-            },
-            onSkip = {
-                sharedPrefs.edit()
-                    .putBoolean("is_onboarded_v2_new", true)
-                    .putBoolean("is_onboarded", true)
-                    .putString("custom_m3u_url", "")
-                    .apply()
-                showOnboarding = false
-                viewModel.syncFromNetwork("") {
-                    coroutineScope.launch {
-                        snackbarHostState.showSnackbar("تم تفعيل باقات القنوات المدمجة بنجاح!")
-                    }
+                coroutineScope.launch {
+                    snackbarHostState.showSnackbar("تمت مزامنة وتفعيل الباقات بنجاح!")
                 }
             }
         )

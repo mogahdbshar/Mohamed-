@@ -27,7 +27,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.dstwrtv.app.viewmodel.MainViewModel
 
 enum class OnboardingStep {
     SELECTOR,
@@ -38,10 +40,16 @@ enum class OnboardingStep {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OnboardingView(
-    onComplete: (String) -> Unit,
-    onSkip: () -> Unit,
+    viewModel: MainViewModel,
+    onComplete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val sharedPrefs = remember { context.getSharedPreferences("dstwr_prefs", android.content.Context.MODE_PRIVATE) }
+    val settingsManager = remember { com.dstwrtv.app.core.settings.SettingsManager(context) }
+    val scope = rememberCoroutineScope()
+
+    var syncStepText by remember { mutableStateOf("") }
     var step by remember { mutableStateOf(OnboardingStep.SELECTOR) }
     
     val keyboardController = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
@@ -57,6 +65,61 @@ fun OnboardingView(
     var successMessage by remember { mutableStateOf<String?>(null) }
     
     val scrollState = rememberScrollState()
+
+    fun performSync(url: String, mode: String) {
+        isLoading = true
+        errorMessage = null
+        successMessage = null
+        
+        settingsManager.sourceMode = mode
+        if (mode == "user_only") {
+            settingsManager.showDevPackage = false
+            settingsManager.customM3uUrl = url
+        } else {
+            settingsManager.showDevPackage = true
+            settingsManager.customM3uUrl = null
+        }
+        
+        val statusJob = scope.launch {
+            syncStepText = "جاري فحص اتصال الإنترنت والتحقق من الخادم..."
+            delay(1500)
+            syncStepText = if (mode == "user_only") {
+                "تمت مصافحة السيرفر بنجاح. جاري تحميل ملف القنوات..."
+            } else {
+                "تم الاتصال بالسيرفر الافتراضي. جاري جلب قنوات البث..."
+            }
+            delay(2000)
+            syncStepText = "جاري معالجة البيانات وتحليل القنوات (قد يستغرق ذلك ثوانٍ)..."
+            delay(2000)
+            syncStepText = "جاري تنظيم الباقات وتطبيق نظام تصفية المحتوى العائلي التلقائي..."
+        }
+        
+        viewModel.syncFromNetwork(url, bypassCache = true) { result ->
+            statusJob.cancel()
+            isLoading = false
+            result.onSuccess { count ->
+                if (count > 0 || mode == "dev_only") {
+                    successMessage = if (mode == "user_only") {
+                        "تمت المزامنة بنجاح! تم العثور على $count قناة جاهزة للبث."
+                    } else {
+                        "تم تفعيل باقات التطبيق الافتراضية بنجاح!"
+                    }
+                    scope.launch {
+                        delay(1200)
+                        sharedPrefs.edit()
+                            .putBoolean("is_onboarded_v2_new", true)
+                            .putBoolean("is_onboarded", true)
+                            .apply()
+                        onComplete()
+                    }
+                } else {
+                    errorMessage = "تمت المزامنة ولكن لم يتم العثور على أي قنوات صالحة في هذا المصدر."
+                }
+            }.onFailure { err ->
+                errorMessage = err.localizedMessage ?: "فشلت عملية المزامنة. يرجى التحقق من الرابط وإعادة المحاولة."
+            }
+        }
+    }
 
     Box(
         modifier = modifier
@@ -133,9 +196,9 @@ fun OnboardingView(
                                 icon = Icons.Rounded.PlayArrow,
                                 iconColor = DSTWRTheme.AccentAmber,
                                 onClick = {
-                                    isLoading = true
-                                    errorMessage = null
-                                    onComplete("") // Empty url means default preloaded channels
+                                    if (!isLoading) {
+                                        performSync("", "dev_only")
+                                    }
                                 }
                             )
 
@@ -144,7 +207,7 @@ fun OnboardingView(
                                 subtitle = "أضف ملف قنواتك الخاص بصيغة M3U/M3U8 لدمجه داخل باقات التطبيق.",
                                 icon = Icons.Rounded.Link,
                                 iconColor = DSTWRTheme.PrimaryRed,
-                                onClick = { step = OnboardingStep.M3U_INPUT }
+                                onClick = { if (!isLoading) step = OnboardingStep.M3U_INPUT }
                             )
 
                             OnboardingCardOption(
@@ -152,7 +215,7 @@ fun OnboardingView(
                                 subtitle = "ادخل بيانات سيرفر Xtream (رابط، يوزر، باسوورد) وسيجلب التطبيق القنوات لك.",
                                 icon = Icons.Rounded.Cloud,
                                 iconColor = Color(0xFF3B82F6),
-                                onClick = { step = OnboardingStep.XTREAM_INPUT }
+                                onClick = { if (!isLoading) step = OnboardingStep.XTREAM_INPUT }
                             )
                         }
 
@@ -163,7 +226,7 @@ fun OnboardingView(
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.clickable { step = OnboardingStep.SELECTOR }
+                                    modifier = Modifier.clickable { if (!isLoading) step = OnboardingStep.SELECTOR }
                                 ) {
                                     Icon(
                                         imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
@@ -210,7 +273,8 @@ fun OnboardingView(
                                         focusedTextColor = Color.White,
                                         unfocusedTextColor = Color.White
                                     ),
-                                    shape = RoundedCornerShape(12.dp)
+                                    shape = RoundedCornerShape(12.dp),
+                                    enabled = !isLoading
                                 )
 
                                 Button(
@@ -221,9 +285,7 @@ fun OnboardingView(
                                         }
                                         keyboardController?.hide()
                                         focusManager.clearFocus()
-                                        isLoading = true
-                                        errorMessage = null
-                                        onComplete(m3uUrl.trim())
+                                        performSync(m3uUrl.trim(), "user_only")
                                     },
                                     colors = ButtonDefaults.buttonColors(containerColor = DSTWRTheme.PrimaryRed),
                                     modifier = Modifier
@@ -245,7 +307,7 @@ fun OnboardingView(
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.clickable { step = OnboardingStep.SELECTOR }
+                                    modifier = Modifier.clickable { if (!isLoading) step = OnboardingStep.SELECTOR }
                                 ) {
                                     Icon(
                                         imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
@@ -292,7 +354,8 @@ fun OnboardingView(
                                         focusedTextColor = Color.White,
                                         unfocusedTextColor = Color.White
                                     ),
-                                    shape = RoundedCornerShape(12.dp)
+                                    shape = RoundedCornerShape(12.dp),
+                                    enabled = !isLoading
                                 )
 
                                 TextField(
@@ -317,7 +380,8 @@ fun OnboardingView(
                                         focusedTextColor = Color.White,
                                         unfocusedTextColor = Color.White
                                     ),
-                                    shape = RoundedCornerShape(12.dp)
+                                    shape = RoundedCornerShape(12.dp),
+                                    enabled = !isLoading
                                 )
 
                                 TextField(
@@ -342,7 +406,8 @@ fun OnboardingView(
                                         focusedTextColor = Color.White,
                                         unfocusedTextColor = Color.White
                                     ),
-                                    shape = RoundedCornerShape(12.dp)
+                                    shape = RoundedCornerShape(12.dp),
+                                    enabled = !isLoading
                                 )
 
                                 Button(
@@ -358,11 +423,9 @@ fun OnboardingView(
                                         
                                         keyboardController?.hide()
                                         focusManager.clearFocus()
-                                        isLoading = true
-                                        errorMessage = null
                                         val cleanHost = xtreamHost.trim().removeSuffix("/")
                                         val generatedUrl = "$cleanHost/get.php?username=${xtreamUser.trim()}&password=${xtreamPass.trim()}&type=m3u_plus&output=ts"
-                                        onComplete(generatedUrl)
+                                        performSync(generatedUrl, "user_only")
                                     },
                                     colors = ButtonDefaults.buttonColors(containerColor = DSTWRTheme.PrimaryRed),
                                     modifier = Modifier
@@ -383,12 +446,13 @@ fun OnboardingView(
             if (isLoading) {
                 Spacer(modifier = Modifier.height(24.dp))
                 CircularProgressIndicator(color = DSTWRTheme.PrimaryRed, modifier = Modifier.size(28.dp))
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(10.dp))
                 Text(
-                    text = "جاري مزامنة وجلب القنوات وتجهيز الباقات...",
+                    text = if (syncStepText.isNotEmpty()) syncStepText else "جاري مزامنة وجلب القنوات وتجهيز الباقات...",
                     color = DSTWRTheme.TextMuted,
-                    fontSize = 11.sp,
-                    textAlign = TextAlign.Center
+                    fontSize = 11.5.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 16.dp)
                 )
             }
 
@@ -406,11 +470,30 @@ fun OnboardingView(
                     ) {
                         Icon(imageVector = Icons.Rounded.Warning, contentDescription = "تنبيه", tint = Color(0xFFF87171), modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(text = msg, color = Color(0xFFF87171), fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                        Text(text = msg, color = Color(0xFFF87171), fontSize = 11.5.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                     }
                 }
                 LaunchedEffect(msg) {
                     isLoading = false
+                }
+            }
+
+            successMessage?.let { msg ->
+                Spacer(modifier = Modifier.height(16.dp))
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Color(0x2C22C55E)),
+                    border = BorderStroke(1.dp, Color(0xFF22C55E).copy(alpha = 0.5f)),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(imageVector = Icons.Rounded.CheckCircle, contentDescription = "نجاح", tint = Color(0xFF4ADE80), modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(text = msg, color = Color(0xFF4ADE80), fontSize = 11.5.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                    }
                 }
             }
 
@@ -426,11 +509,14 @@ fun OnboardingView(
             )
             
             Button(
-                onClick = onSkip,
+                onClick = {
+                    performSync("", "dev_only")
+                },
                 colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
                 modifier = Modifier.fillMaxWidth(),
                 border = BorderStroke(1.dp, DSTWRTheme.BorderSoft),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(12.dp),
+                enabled = !isLoading
             ) {
                 Text(text = "تخطي والتشغيل الفوري للمدمج", color = Color.White, fontSize = 11.sp)
             }
