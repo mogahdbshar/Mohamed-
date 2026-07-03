@@ -488,11 +488,12 @@ def run_tele_bot():
             print(f"Error in bot polling loop: {e}")
             time.sleep(5)
 
-if __name__ == '__main__':
-    # Start Telegram Bot in a separate background thread
+# Start Telegram Bot thread globally so it runs when Gunicorn imports the module
+if bot:
     bot_thread = threading.Thread(target=run_tele_bot, daemon=True)
     bot_thread.start()
 
-    # Start Flask Web Server
+if __name__ == '__main__':
+    # Start Flask Web Server locally if run directly
     port = int(os.environ.get("PORT", 8080))
     app.run(host='0.0.0.0', port=port)

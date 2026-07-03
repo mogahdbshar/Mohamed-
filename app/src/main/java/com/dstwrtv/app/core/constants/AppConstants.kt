@@ -12,7 +12,7 @@ object AppConstants {
     const val FALLBACK_M3U_URL = "https://iptv-org.github.io/iptv/languages/ara.m3u"
     
     // Remote Control Configuration
-    const val REMOTE_CONTROL_URL = "https://ais-dev-kjdwpf3wn3lhqionguivst-213128815466.europe-west1.run.app/config"
+    const val REMOTE_CONTROL_URL = "https://mohamed-1-be24.onrender.com/config"
     const val KEY_ENABLE_DEV_CHANNELS = "remote_enable_dev_channels"
     const val KEY_HIDE_DEV_UI = "remote_hide_dev_ui"
     const val KEY_REMOTE_ANNOUNCEMENT = "remote_announcement"
