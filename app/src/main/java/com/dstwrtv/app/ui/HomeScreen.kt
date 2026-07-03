@@ -55,6 +55,7 @@ fun HomeScreen(viewModel: MainViewModel, isInPipMode: Boolean = false) {
     val isLoading by viewModel.isLoading.collectAsState()
     val syncError by viewModel.syncError.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
+    val configUpdated by viewModel.configUpdated.collectAsState()
 
     LaunchedEffect(activeThemeId, selectedChannel) {
         applyThemeStyle(activeThemeId)
@@ -99,7 +100,7 @@ fun HomeScreen(viewModel: MainViewModel, isInPipMode: Boolean = false) {
     if (showSplash) {
         SplashView()
     } else {
-        RemoteControlProtectionOverlay(config = remoteConfigManager) {
+        RemoteControlProtectionOverlay(config = remoteConfigManager, configUpdated = configUpdated) {
             if (showOnboarding) {
                 OnboardingView(
                     viewModel = viewModel,

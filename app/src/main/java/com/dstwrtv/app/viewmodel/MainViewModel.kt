@@ -121,6 +121,21 @@ class MainViewModel(private val app: Application, private val repository: Channe
                 syncFromNetwork()
             }
         }
+
+        // Start a recurring background polling thread to check for remote updates every 15 seconds
+        viewModelScope.launch {
+            while (true) {
+                kotlinx.coroutines.delay(15000)
+                try {
+                    val success = remoteConfigManager.fetchConfig()
+                    if (success) {
+                        _configUpdated.value = System.currentTimeMillis()
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        }
     }
 
     fun syncFromNetwork(customUrl: String? = null, bypassCache: Boolean = false, onResult: ((Result<Int>) -> Unit)? = null) {

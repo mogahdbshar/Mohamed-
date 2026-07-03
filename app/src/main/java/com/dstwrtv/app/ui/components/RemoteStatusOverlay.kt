@@ -35,22 +35,23 @@ import com.dstwrtv.app.core.settings.RemoteConfigManager
 fun RemoteControlProtectionOverlay(
     config: RemoteConfigManager,
     currentVersionCode: Int = 1,
+    configUpdated: Long = 0L,
     content: @Composable () -> Unit
 ) {
     val context = LocalContext.current
-    val appStatus = config.appStatus
-    val minVersion = config.minAppVersion
+    val appStatus = remember(configUpdated) { config.appStatus }
+    val minVersion = remember(configUpdated) { config.minAppVersion }
     
     // Check if force update is needed
     val needsForceUpdate = minVersion > currentVersionCode
     
     // State to handle optional update dialog
-    var showOptionalUpdate by remember(config.latestAppVersion) {
+    var showOptionalUpdate by remember(config.latestAppVersion, configUpdated) {
         mutableStateOf(config.latestAppVersion > currentVersionCode && !needsForceUpdate)
     }
 
     // State to handle announcement dialog
-    var showAnnouncement by remember(config.announcementShow) {
+    var showAnnouncement by remember(config.announcementShow, configUpdated) {
         mutableStateOf(config.announcementShow && config.announcementMessage.isNotBlank())
     }
 
