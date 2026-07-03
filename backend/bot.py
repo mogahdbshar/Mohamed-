@@ -14,6 +14,7 @@ CONFIG_FILE = "config.json"
 TELEMETRY_FILE = "telemetry.json"
 
 DEFAULT_CONFIG = {
+    "app_status": "active",
     "min_app_version": 1,
     "latest_app_version": 1,
     "update_url": "https://t.me/dstwrtv_channel",
@@ -221,9 +222,11 @@ if bot:
         if not is_admin(message): return
         with data_lock:
             global config
-            config["hide_all_channels"] = not config["hide_all_channels"]
+            new_hide_state = not config.get("hide_all_channels", False)
+            config["hide_all_channels"] = new_hide_state
+            config["app_status"] = "maintenance" if new_hide_state else "active"
             save_config(config)
-            status_str = "❌ تم إيقاف عرض كافة القنوات وتفعيل شاشة الصيانة بالتطبيق" if config["hide_all_channels"] else "✅ تم إعادة تفعيل كافة القنوات وبدء البث بنجاح"
+            status_str = "❌ تم إيقاف عرض كافة القنوات وتفعيل شاشة الصيانة بالتطبيق" if new_hide_state else "✅ تم إعادة تفعيل كافة القنوات وبدء البث بنجاح"
         bot.send_message(message.chat.id, f"⚡ *تغيير حالة البث:*\n\n{status_str}", parse_mode="Markdown")
 
     @bot.message_handler(func=lambda msg: msg.text == "🛠️ إخفاء/إظهار قنوات التطبيق")
@@ -247,6 +250,9 @@ if bot:
             config["hidden_channels"] = ""
             config["hidden_tabs"] = ""
             config["hide_all_channels"] = False
+            config["app_status"] = "active"
+            config["hide_all_developer_options"] = False
+            config["enable_developer_channels"] = True
             save_config(config)
         bot.send_message(message.chat.id, "🔄 *تم إعادة ضبط الفلاتر وحجب القنوات والتبويبات بنجاح!* جميع القنوات ظاهرة الآن بالتطبيق.", parse_mode="Markdown")
 
