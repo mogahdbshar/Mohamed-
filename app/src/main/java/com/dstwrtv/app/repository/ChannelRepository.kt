@@ -243,7 +243,7 @@ class ChannelRepository(
             val customChannels = mutableListOf<Channel>()
 
             // 1. Fetch System Configuration ONLY if needed (merged or dev_only)
-            val needSystem = (sourceMode == "merged" || sourceMode == "dev_only") && showDev && remoteConfigManager.enableDeveloperChannels
+            val needSystem = (sourceMode == "merged" || sourceMode == "dev_only") && showDev && remoteConfigManager.enableDeveloperChannels && !remoteConfigManager.hideDeveloperUI
             if (needSystem) {
                 try {
                     val officialUrl = if (remoteConfigManager.remoteM3uUrl.isNotBlank()) {

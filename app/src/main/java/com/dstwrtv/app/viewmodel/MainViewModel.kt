@@ -37,25 +37,56 @@ class MainViewModel(private val app: Application, private val repository: Channe
     private val _selectedChannel = MutableStateFlow<Channel?>(null)
     val selectedChannel: StateFlow<Channel?> = _selectedChannel
 
-    // Read reactive streams from Room Database to allow instant zero-internet launches
-    val allChannels: StateFlow<List<Channel>> = repository.allChannels
-        .map { list ->
-            list.sortedWith(compareBy<Channel> { it.category }.thenByDescending {
-                val nameUpper = it.name.uppercase()
-                nameUpper.startsWith("AR") || it.name.any { char -> char in '\u0600'..'\u06FF' }
-            }.thenBy { it.name })
+    private val _configUpdated = MutableStateFlow(System.currentTimeMillis())
+    val configUpdated: StateFlow<Long> = _configUpdated.asStateFlow()
+
+    val remoteConfigManager = (app as com.dstwrtv.app.DstwrApplication).remoteConfigManager
+
+    private fun filterChannelsByRemoteConfig(channelsList: List<Channel>): List<Channel> {
+        if (remoteConfigManager.hideAllChannels) {
+            return emptyList()
         }
-        .flowOn(Dispatchers.IO)
+        
+        val hideCats = remoteConfigManager.hiddenCategories.split(",")
+            .map { it.trim().lowercase() }
+            .filter { it.isNotBlank() }
+            
+        val hideChs = remoteConfigManager.hiddenChannels.split(",")
+            .map { it.trim().lowercase() }
+            .filter { it.isNotBlank() }
+            
+        return channelsList.filter { ch ->
+            val catLower = ch.category.lowercase()
+            val nameLower = ch.name.lowercase()
+            
+            if (catLower == "dev-hidden") return@filter false
+            
+            val isCatHidden = hideCats.any { catLower.contains(it) || it.contains(catLower) }
+            val isChHidden = hideChs.any { nameLower.contains(it) || it.contains(nameLower) }
+            
+            !isCatHidden && !isChHidden
+        }
+    }
+
+    // Read reactive streams from Room Database to allow instant zero-internet launches
+    val allChannels: StateFlow<List<Channel>> = combine(repository.allChannels, _configUpdated) { rawList, _ ->
+        val sorted = rawList.sortedWith(compareBy<Channel> { it.category }.thenByDescending {
+            val nameUpper = it.name.uppercase()
+            nameUpper.startsWith("AR") || it.name.any { char -> char in '\u0600'..'\u06FF' }
+        }.thenBy { it.name })
+        
+        filterChannelsByRemoteConfig(sorted)
+    }.flowOn(Dispatchers.IO)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val favoriteChannels: StateFlow<List<Channel>> = repository.favoriteChannels
-        .map { list ->
-            list.sortedWith(compareBy<Channel> { it.category }.thenByDescending {
-                val nameUpper = it.name.uppercase()
-                nameUpper.startsWith("AR") || it.name.any { char -> char in '\u0600'..'\u06FF' }
-            }.thenBy { it.name })
-        }
-        .flowOn(Dispatchers.IO)
+    val favoriteChannels: StateFlow<List<Channel>> = combine(repository.favoriteChannels, _configUpdated) { rawList, _ ->
+        val sorted = rawList.sortedWith(compareBy<Channel> { it.category }.thenByDescending {
+            val nameUpper = it.name.uppercase()
+            nameUpper.startsWith("AR") || it.name.any { char -> char in '\u0600'..'\u06FF' }
+        }.thenBy { it.name })
+        
+        filterChannelsByRemoteConfig(sorted)
+    }.flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // Live search and filter stream
@@ -63,19 +94,22 @@ class MainViewModel(private val app: Application, private val repository: Channe
         if (query.isBlank()) {
             channelsList
         } else {
-            channelsList.filter {
-                it.name.contains(query, ignoreCase = true) || it.category.contains(query, ignoreCase = true)
+            val norm = com.dstwrtv.app.core.util.ArabicUtils.normalize(query)
+            val terms = norm.split(" ").filter { it.isNotBlank() }
+            channelsList.filter { ch ->
+                val targetName = com.dstwrtv.app.core.util.ArabicUtils.normalize(ch.name)
+                val targetCat = com.dstwrtv.app.core.util.ArabicUtils.normalize(ch.category)
+                terms.all { targetName.contains(it) || targetCat.contains(it) }
             }
         }
     }.flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val remoteConfigManager = (app as com.dstwrtv.app.DstwrApplication).remoteConfigManager
-
     init {
         viewModelScope.launch {
             // Fetch remote configuration silently from GitHub or custom URL
             remoteConfigManager.fetchConfig()
+            _configUpdated.value = System.currentTimeMillis()
             
             // Send initial ping to register user session
             try {
@@ -92,6 +126,10 @@ class MainViewModel(private val app: Application, private val repository: Channe
     fun syncFromNetwork(customUrl: String? = null, bypassCache: Boolean = false, onResult: ((Result<Int>) -> Unit)? = null) {
         viewModelScope.launch {
             _syncState.value = SyncUiState.Loading
+            
+            // Re-fetch configuration as well to update any dynamic bans
+            remoteConfigManager.fetchConfig()
+            _configUpdated.value = System.currentTimeMillis()
             
             val result = repository.syncChannels(customUrl, bypassCache = bypassCache || (customUrl != null))
             result.onSuccess { loadedCount ->

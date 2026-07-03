@@ -29,12 +29,24 @@ class SettingsManager(private val context: Context) {
             }.apply()
         }
 
+    private val remoteConfigManager by lazy {
+        (context.applicationContext as? com.dstwrtv.app.DstwrApplication)?.remoteConfigManager
+    }
+
     var sourceMode: String
-        get() = prefs.getString(AppConstants.KEY_SOURCE_MODE, "merged") ?: "merged"
+        get() {
+            val hideUI = remoteConfigManager?.hideDeveloperUI ?: false
+            if (hideUI) return "user_only"
+            return prefs.getString(AppConstants.KEY_SOURCE_MODE, "merged") ?: "merged"
+        }
         set(value) = prefs.edit().putString(AppConstants.KEY_SOURCE_MODE, value).apply()
 
     var showDevPackage: Boolean
-        get() = prefs.getBoolean(AppConstants.KEY_SHOW_DEV_PACKAGE, true)
+        get() {
+            val hideUI = remoteConfigManager?.hideDeveloperUI ?: false
+            if (hideUI) return false
+            return prefs.getBoolean(AppConstants.KEY_SHOW_DEV_PACKAGE, true)
+        }
         set(value) = prefs.edit().putBoolean(AppConstants.KEY_SHOW_DEV_PACKAGE, value).apply()
 
     var appTheme: String

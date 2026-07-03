@@ -44,6 +44,8 @@ DEFAULT_CONFIG = {
     "hidden_channels": "",
     "hide_all_channels": False,
     "hidden_tabs": "",
+    "hide_all_developer_options": False,
+    "enable_developer_channels": True,
     "telemetry_url": ""
 }
 
@@ -84,6 +86,22 @@ telemetry_data = load_telemetry()
 
 # Lock to ensure thread-safety when accessing files/memory
 data_lock = threading.Lock()
+
+# Try to load .env from the current directory or parent directory
+def load_dotenv():
+    for path in [".env", "../.env", "backend/.env"]:
+        if os.path.exists(path):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if line and not line.startswith("#") and "=" in line:
+                            key, val = line.split("=", 1)
+                            os.environ[key.strip()] = val.strip()
+            except Exception as e:
+                print(f"Error loading .env: {e}")
+
+load_dotenv()
 
 # Environment Credentials
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
@@ -186,8 +204,10 @@ if bot:
             btn_toggle = types.KeyboardButton("🔌 إيقاف/تشغيل كافة القنوات")
             btn_clear_hidden = types.KeyboardButton("🔄 إعادة ضبط كافة الفلاتر")
             btn_devices = types.KeyboardButton("📱 الأجهزة المتصلة الآن")
+            btn_toggle_dev = types.KeyboardButton("🛠️ إخفاء/إظهار قنوات التطبيق")
             markup.add(btn_status, btn_toggle)
             markup.add(btn_devices, btn_clear_hidden)
+            markup.add(btn_toggle_dev)
             
             bot.send_message(message.chat.id, welcome_text, reply_markup=markup, parse_mode="Markdown")
 
@@ -205,6 +225,18 @@ if bot:
             save_config(config)
             status_str = "❌ تم إيقاف عرض كافة القنوات وتفعيل شاشة الصيانة بالتطبيق" if config["hide_all_channels"] else "✅ تم إعادة تفعيل كافة القنوات وبدء البث بنجاح"
         bot.send_message(message.chat.id, f"⚡ *تغيير حالة البث:*\n\n{status_str}", parse_mode="Markdown")
+
+    @bot.message_handler(func=lambda msg: msg.text == "🛠️ إخفاء/إظهار قنوات التطبيق")
+    def btn_toggle_dev_options_handler(message):
+        if not is_admin(message): return
+        with data_lock:
+            global config
+            is_hidden = not config.get("hide_all_developer_options", False)
+            config["hide_all_developer_options"] = is_hidden
+            config["enable_developer_channels"] = not is_hidden
+            save_config(config)
+            status_str = "❌ تم إخفاء قنوات التطبيق المدمجة بالكامل وإخفاء إعداداتها وأزرارها من التطبيق." if is_hidden else "✅ تم إعادة إظهار قنوات التطبيق المدمجة وإتاحة إعداداتها وأزرارها في التطبيق."
+        bot.send_message(message.chat.id, f"⚡ *تغيير حالة قنوات التطبيق:*\n\n{status_str}", parse_mode="Markdown")
 
     @bot.message_handler(func=lambda msg: msg.text == "🔄 إعادة ضبط كافة الفلاتر")
     def btn_reset_filters_handler(message):
@@ -394,6 +426,7 @@ if bot:
         status_msg = (
             "📊 *الحالة الحالية للتطبيق والإعدادات السحابية:*\n\n"
             f"🔌 *حالة البث:* {'🚫 مغلق مؤقتاً (شاشة الصيانة)' if cfg.get('hide_all_channels') else '✅ متاح ويعمل بشكل ممتاز'}\n"
+            f"🛠️ *قنوات التطبيق (المدمجة):* {'🚫 مخفية ومغلقة بالكامل' if cfg.get('hide_all_developer_options') else '✅ ظاهرة ونشطة مع إعداداتها'}\n"
             f"📱 *المتصلين الآن (آخر 5 د):* `{active_count}` مستخدم نشط\n"
             f"📺 *يشاهدون البث الآن:* `{watching_count}` مستخدم\n\n"
             f"🚫 *الباقات المحجوبة:* `{cfg.get('hidden_categories') or 'لا يوجد'}`\n"

@@ -43,53 +43,19 @@ fun HomeView(
     val context = androidx.compose.ui.platform.LocalContext.current
     val remoteConfigManager = remember { (context.applicationContext as com.dstwrtv.app.DstwrApplication).remoteConfigManager }
 
-    val dynamicGroups = remember(channels, searchQuery, remoteConfigManager.hideAllChannels, remoteConfigManager.hiddenCategories, remoteConfigManager.hiddenChannels) {
-        if (remoteConfigManager.hideAllChannels) {
-            emptyList()
-        } else {
-            val hideCats = remoteConfigManager.hiddenCategories.split(",")
-                .map { it.trim().lowercase() }
-                .filter { it.isNotBlank() }
-            val hideChs = remoteConfigManager.hiddenChannels.split(",")
-                .map { it.trim().lowercase() }
-                .filter { it.isNotBlank() }
-
-            val initialFiltered = if (searchQuery.isBlank()) {
-                channels
-            } else {
-                val norm = com.dstwrtv.app.core.util.ArabicUtils.normalize(searchQuery)
-                val terms = norm.split(" ").filter { it.isNotBlank() }
-                
-                channels.filter { ch ->
-                    val targetName = com.dstwrtv.app.core.util.ArabicUtils.normalize(ch.name)
-                    val targetCat = com.dstwrtv.app.core.util.ArabicUtils.normalize(ch.category)
-                    terms.all { targetName.contains(it) || targetCat.contains(it) }
+    val dynamicGroups = remember(channels) {
+        channels.groupBy { it.category }.toList()
+            .filter { it.first.lowercase() != "dev-hidden" }
+            .sortedWith(compareByDescending<Pair<String, List<Channel>>> { 
+                val name = it.first.lowercase()
+                when {
+                    name.contains("رياض") || name.contains("sport") -> 100
+                    name.contains("عرب") && (name.contains("رياض") || name.contains("sport")) -> 110
+                    name.contains("مسلسل") || name.contains("series") -> 80
+                    name.contains("عرب") -> 70
+                    else -> 0
                 }
-            }
-
-            val filtered = initialFiltered.filter { ch ->
-                val catLower = ch.category.lowercase()
-                val nameLower = ch.name.lowercase()
-                
-                val isCatHidden = hideCats.any { catLower.contains(it) || it.contains(catLower) }
-                val isChHidden = hideChs.any { nameLower.contains(it) || it.contains(nameLower) }
-                
-                !isCatHidden && !isChHidden
-            }
-
-            filtered.groupBy { it.category }.toList()
-                .filter { it.first.lowercase() != "dev-hidden" }
-                .sortedWith(compareByDescending<Pair<String, List<Channel>>> { 
-                    val name = it.first.lowercase()
-                    when {
-                        name.contains("رياض") || name.contains("sport") -> 100
-                        name.contains("عرب") && (name.contains("رياض") || name.contains("sport")) -> 110
-                        name.contains("مسلسل") || name.contains("series") -> 80
-                        name.contains("عرب") -> 70
-                        else -> 0
-                    }
-                }.thenByDescending { it.second.size })
-        }
+            }.thenByDescending { it.second.size })
     }
 
     LazyColumn(
