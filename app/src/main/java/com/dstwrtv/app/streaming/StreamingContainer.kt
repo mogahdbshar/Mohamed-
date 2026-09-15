@@ -2,6 +2,8 @@ package com.dstwrtv.app.streaming
 
 import com.dstwrtv.app.streaming.data.remote.CinemetaApi
 import com.dstwrtv.app.streaming.data.remote.CinemetaMetadataProvider
+import com.dstwrtv.app.streaming.data.remote.TvMazeApi
+import com.dstwrtv.app.streaming.data.remote.TvMazeMetadataProvider
 import com.dstwrtv.app.streaming.domain.metadata.MetadataEngine
 import com.dstwrtv.app.streaming.domain.source.InMemorySourceHealthStore
 import com.dstwrtv.app.streaming.domain.source.SourceEngine
@@ -14,7 +16,7 @@ import java.util.concurrent.TimeUnit
  * Composition root for the streaming subsystem.
  * No user-supplied API key is required for the baseline metadata engine.
  * Keyed providers such as TMDB remain optional adapters and are not required
- * for the app to discover or display the baseline movie/TV catalog.
+ * for the baseline catalog to operate.
  */
 object StreamingContainer {
     private val httpClient: OkHttpClient by lazy {
@@ -35,10 +37,20 @@ object StreamingContainer {
             .create(CinemetaApi::class.java)
     }
 
+    private val tvMazeApi: TvMazeApi by lazy {
+        Retrofit.Builder()
+            .baseUrl("https://api.tvmaze.com/")
+            .client(httpClient)
+            .addConverterFactory(MoshiConverterFactory.create())
+            .build()
+            .create(TvMazeApi::class.java)
+    }
+
     val metadataEngine: MetadataEngine by lazy {
         MetadataEngine(
             providers = listOf(
-                CinemetaMetadataProvider(cinemetaApi)
+                CinemetaMetadataProvider(cinemetaApi),
+                TvMazeMetadataProvider(tvMazeApi)
             )
         )
     }
