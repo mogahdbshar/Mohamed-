@@ -25,11 +25,8 @@ class SourceEngine(
         val deferred = mutex.withLock {
             inFlight[key] ?: coroutineScope {
                 async(Dispatchers.IO) {
-                    try {
-                        resolveInternal(request, maxSources)
-                    } finally {
-                        mutex.withLock { inFlight.remove(key) }
-                    }
+                    try { resolveInternal(request, maxSources) }
+                    finally { mutex.withLock { inFlight.remove(key) } }
                 }.also { inFlight[key] = it }
             }
         }
@@ -39,40 +36,33 @@ class SourceEngine(
     private suspend fun resolveInternal(request: SourceRequest, maxSources: Int): SourceResolution =
         withContext(Dispatchers.IO) {
             val now = System.currentTimeMillis()
-            val candidates = providers
-                .filterNot { it.id.isBlank() }
-                .filterNot { healthStore.isTemporarilyUnavailable(it.id, now) }
-                .sortedByDescending { it.priority }
-
+            val candidates = SourceProviderHealthRanker.rank(
+                providers.filter { it.id.isNotBlank() }
+                    .filterNot { healthStore.isTemporarilyUnavailable(it.id, now) },
+                healthStore.snapshot()
+            )
             val resolved = coroutineScope {
                 candidates.map { provider ->
                     async {
                         semaphore.withPermit {
                             val started = System.nanoTime()
                             runCatching { provider.resolve(request) }
-                                .onSuccess {
-                                    healthStore.recordSuccess(provider.id, (System.nanoTime() - started) / 1_000_000L)
-                                }
+                                .onSuccess { healthStore.recordSuccess(provider.id, (System.nanoTime() - started) / 1_000_000L) }
                                 .onFailure { healthStore.recordFailure(provider.id) }
                                 .getOrDefault(emptyList())
-                                .filter { source -> isSafeDirectCandidate(source) }
+                                .filter(::isSafeDirectCandidate)
                                 .map { provider.priority to it }
                         }
                     }
                 }.awaitAll()
             }
-
-            val sources = resolved
-                .flatten()
-                .sortedWith(
-                    compareByDescending<Pair<Int, PlaybackSource>> { it.first }
-                        .thenByDescending { it.second.quality ?: 0 }
-                )
+            val sources = resolved.flatten()
+                .sortedWith(compareByDescending<Pair<Int, PlaybackSource>> { it.first }
+                    .thenByDescending { it.second.quality ?: 0 })
                 .map { it.second }
                 .distinctBy { normalizeUrl(it.url) }
                 .take(maxSources.coerceAtLeast(1))
-
-            SourceResolution(request = request, sources = sources)
+            SourceResolution(request, sources)
         }
 
     private fun isSafeDirectCandidate(source: PlaybackSource): Boolean {
@@ -82,6 +72,5 @@ class SourceEngine(
     }
 
     private fun normalizeUrl(url: String): String = url.trim().removeSuffix("/")
-
     fun health(): List<SourceProviderHealth> = healthStore.snapshot()
 }
