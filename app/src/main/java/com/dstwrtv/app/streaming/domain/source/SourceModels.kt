@@ -2,10 +2,7 @@ package com.dstwrtv.app.streaming.domain.source
 
 import com.dstwrtv.app.streaming.domain.model.MediaType
 
-/**
- * A playback candidate consumed directly by the device player.
- * The application does not proxy or relay the video bytes.
- */
+/** A playback candidate consumed directly by the device player. */
 data class PlaybackSource(
     val url: String,
     val label: String,
@@ -24,13 +21,11 @@ data class SourceRequest(
     val providerId: String? = null,
     val seasonNumber: Int? = null,
     val episodeNumber: Int? = null,
-    val preferredLanguage: String? = null
+    val preferredLanguage: String? = null,
+    val title: String? = null
 ) {
     val contentKey: String
-        get() = providerId?.let { "${provider.orEmpty()}:$it" }
-            ?: tmdbId?.toString()
-            ?: error("A providerId or tmdbId is required")
-
+        get() = providerId?.let { "${provider.orEmpty()}:$it" } ?: tmdbId?.toString() ?: error("A providerId or tmdbId is required")
     val episodeKey: String
         get() = buildString {
             append(contentKey)
