@@ -22,16 +22,5 @@ class SourceRegistry(
 
     fun all(): List<SourceProvider> = entries.values.toList()
 
-    fun enabledFor(request: SourceRequest): List<SourceProvider> = entries.values
-        .filter { provider ->
-            provider.resolveCapability(request.mediaType)
-        }
-        .sortedByDescending { it.priority }
+    fun ordered(): List<SourceProvider> = entries.values.sortedByDescending { it.priority }
 }
-
-private fun SourceProvider.resolveCapability(mediaType: com.dstwrtv.app.streaming.domain.model.MediaType): Boolean =
-    when (mediaType) {
-        com.dstwrtv.app.streaming.domain.model.MediaType.MOVIE,
-        com.dstwrtv.app.streaming.domain.model.MediaType.TV -> true
-        else -> false
-    }
