@@ -12,18 +12,13 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 
-/**
- * Generic Stremio-compatible stream adapter.
- * It knows the protocol, not a specific stream site. The endpoint is supplied
- * by the provider registry/configuration layer, so the app can add or retire
- * adapters without changing the UI or player.
- */
+/** Generic Stremio-compatible stream protocol adapter. */
 class StremioAddonSourceProvider(
     override val id: String,
     override val priority: Int,
     private val baseUrl: String,
     private val client: OkHttpClient,
-    private val moshi: Moshi = Moshi.Builder().build()
+    moshi: Moshi = Moshi.Builder().build()
 ) : SourceProvider {
     private val adapter = moshi.adapter(StreamResponseDto::class.java)
 
@@ -34,43 +29,38 @@ class StremioAddonSourceProvider(
         }
         val id = request.providerId.trim()
         if (id.isBlank()) return@withContext emptyList()
-
         val streamId = buildString {
             append(id)
             if (request.mediaType == MediaType.TV_SHOW) {
-                val season = request.seasonNumber ?: return@withContext emptyList()
-                val episode = request.episodeNumber ?: return@withContext emptyList()
-                append(":").append(season).append(":").append(episode)
+                append(":").append(request.seasonNumber ?: return@withContext emptyList())
+                append(":").append(request.episodeNumber ?: return@withContext emptyList())
             }
         }
         val endpoint = baseUrl.trimEnd('/').toHttpUrl().newBuilder()
             .addPathSegments("stream/$type/$streamId.json")
             .build()
-        val response = client.newCall(Request.Builder().url(endpoint).get().build()).execute()
-        if (!response.isSuccessful) return@withContext emptyList()
-        val body = response.body?.string().orEmpty()
-        val parsed = runCatching { adapter.fromJson(body) }.getOrNull() ?: return@withContext emptyList()
-        parsed.streams.orEmpty().mapNotNull { stream ->
-            val url = stream.url?.takeIf { it.startsWith("http://") || it.startsWith("https://") }
-                ?: return@mapNotNull null
-            PlaybackSource(
-                url = url,
-                label = stream.title.orEmpty().ifBlank { id },
-                quality = stream.behaviorHints?.videoSize,
-                format = stream.behaviorHints?.filename?.substringAfterLast('.', "").takeIf { it.isNotBlank() },
-                language = stream.language,
-                headers = stream.headers.orEmpty(),
-                isEmbedded = false,
-                requiresProxy = false
-            )
+        client.newCall(Request.Builder().url(endpoint).get().build()).execute().use { response ->
+            if (!response.isSuccessful) return@withContext emptyList()
+            val parsed = runCatching { adapter.fromJson(response.body?.string().orEmpty()) }.getOrNull()
+                ?: return@withContext emptyList()
+            parsed.streams.orEmpty().mapNotNull { stream ->
+                val url = stream.url?.takeIf { it.startsWith("http://") || it.startsWith("https://") }
+                    ?: return@mapNotNull null
+                PlaybackSource(
+                    url = url,
+                    label = stream.title.orEmpty().ifBlank { id },
+                    format = stream.behaviorHints?.filename?.substringAfterLast('.', "")
+                        ?.takeIf { it.isNotBlank() },
+                    language = stream.language,
+                    headers = stream.headers.orEmpty()
+                )
+            }
         }
     }
 }
 
 @JsonClass(generateAdapter = true)
-data class StreamResponseDto(
-    val streams: List<StreamDto>?
-)
+data class StreamResponseDto(val streams: List<StreamDto>?)
 
 @JsonClass(generateAdapter = true)
 data class StreamDto(
@@ -82,7 +72,4 @@ data class StreamDto(
 )
 
 @JsonClass(generateAdapter = true)
-data class BehaviorHintsDto(
-    val filename: String?,
-    val videoSize: Int?
-)
+data class BehaviorHintsDto(val filename: String?)
