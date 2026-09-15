@@ -22,19 +22,21 @@ class VideoPlayerState(context: Context, val coroutineScope: CoroutineScope) {
     var onFinalPlaybackError: (() -> Unit)? = null
     fun updateContext(newContext: Context) { if (contextRef.get() != newContext) contextRef = WeakReference(newContext) }
     var url by mutableStateOf(""); private set
+    private var requestHeaders: Map<String, String> = emptyMap()
     var isBuffering by mutableStateOf(true); var isError by mutableStateOf(false); var errorMessage by mutableStateOf("تعذر تحميل البث المباشر حالياً"); var isRetrying by mutableStateOf(false); var isPlaying by mutableStateOf(true); var isMuted by mutableStateOf(false); var showControls by mutableStateOf(false); var videoResolution by mutableStateOf("تلقائي"); var resizeMode by mutableIntStateOf(AspectRatioFrameLayout.RESIZE_MODE_FIT); var volumeLevel by mutableFloatStateOf(1f); var brightnessLevel by mutableFloatStateOf(0.5f); var gestureType by mutableStateOf<String?>(null); var gestureValue by mutableFloatStateOf(0f); var showGestureOverlay by mutableStateOf(false)
     private var retryCount = 0; private val maxRetries = 5; private var retryJob: Job? = null; internal var player: ExoPlayer? by mutableStateOf(null); private var stopJob: Job? = null; private var gestureHideJob: Job? = null; private var networkJob: Job? = null
     init { initBrightness(); observeNetwork() }
     private fun observeNetwork() { networkJob?.cancel(); networkJob = coroutineScope.launch { com.dstwrtv.app.core.util.NetworkUtils.isOnline.collect { if (it && isError && url.isNotBlank()) { retryCount = 0; refresh() } } } }
     private fun initBrightness() { context.findActivity()?.window?.attributes?.let { brightnessLevel = if (it.screenBrightness < 0) .5f else it.screenBrightness } }
-    fun updateUrl(newUrl: String) { if (url == newUrl) return; url = newUrl; isBuffering = true; isError = false; isRetrying = false; retryCount = 0; retryJob?.cancel(); stopJob?.cancel(); if (player == null) initPlayer() else loadUrl() }
+    fun updateUrl(newUrl: String, headers: Map<String, String> = emptyMap()) { if (url == newUrl && requestHeaders == headers) return; url = newUrl; requestHeaders = headers.filterKeys { it.isNotBlank() }; isBuffering = true; isError = false; isRetrying = false; retryCount = 0; retryJob?.cancel(); if (player == null) initPlayer() else loadUrl() }
     private fun initPlayer() {
         val ctx = context
         player = runCatching {
             val cfg = (ctx.applicationContext as com.dstwrtv.app.DstwrApplication).remoteConfigManager
-            val ua = if (cfg.userAgentOverride.isNotBlank()) cfg.userAgentOverride else "DSTWRTV/2.1.0/Android"
-            val ref = if (cfg.refererOverride.isNotBlank()) cfg.refererOverride else "http://12k-service.org/"
-            val http = DefaultHttpDataSource.Factory().setUserAgent(ua).setAllowCrossProtocolRedirects(true).setConnectTimeoutMs(15000).setReadTimeoutMs(15000).setDefaultRequestProperties(mapOf("Referer" to ref, "User-Agent" to ua))
+            val ua = requestHeaders["User-Agent"].takeUnless { it.isNullOrBlank() } ?: if (cfg.userAgentOverride.isNotBlank()) cfg.userAgentOverride else "DSTWRTV/2.1.0/Android"
+            val ref = requestHeaders["Referer"].takeUnless { it.isNullOrBlank() } ?: if (cfg.refererOverride.isNotBlank()) cfg.refererOverride else "http://12k-service.org/"
+            val mergedHeaders = buildMap { putAll(requestHeaders); put("Referer", ref); put("User-Agent", ua) }
+            val http = DefaultHttpDataSource.Factory().setUserAgent(ua).setAllowCrossProtocolRedirects(true).setConnectTimeoutMs(15000).setReadTimeoutMs(15000).setDefaultRequestProperties(mergedHeaders)
             val source = DefaultMediaSourceFactory(ctx).setDataSourceFactory(http)
             val control = DefaultLoadControl.Builder().setBufferDurationsMs(20_000, 90_000, 3_000, 6_000).setBackBuffer(30_000, true).setPrioritizeTimeOverSizeThresholds(true).build()
             ExoPlayer.Builder(ctx).setMediaSourceFactory(source).setLoadControl(control).setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(), true).setWakeMode(C.WAKE_MODE_NETWORK).build().apply { repeatMode = Player.REPEAT_MODE_OFF }
@@ -43,7 +45,7 @@ class VideoPlayerState(context: Context, val coroutineScope: CoroutineScope) {
     }
     private fun setupPlayerListener() { player?.addListener(object : Player.Listener {
         override fun onPlaybackStateChanged(state: Int) { isBuffering = state == Player.STATE_BUFFERING; if (state == Player.STATE_READY) { isError = false; isRetrying = false; retryCount = 0; retryJob?.cancel() } }
-        override fun onVideoSizeChanged(size: VideoSize) { if (size.height > 0) { videoResolution = "${size.height}p" + if (size.height >= 1080) " FHD" else if (size.height >= 720) " HD" else "" } }
+        override fun onVideoSizeChanged(size: VideoSize) { if (size.height > 0) videoResolution = "${size.height}p" + if (size.height >= 1080) " FHD" else if (size.height >= 720) " HD" else "" }
         override fun onIsPlayingChanged(playing: Boolean) { isPlaying = playing; if (!playing) { stopJob?.cancel(); stopJob = coroutineScope.launch { delay(60_000L); if (player?.playbackState != Player.STATE_IDLE && !isPlaying) { player?.stop(); player?.clearMediaItems() } } } else stopJob?.cancel() }
         override fun onPlayerError(error: PlaybackException) { isBuffering = false; handleRetry(error) }
     }) }
@@ -62,4 +64,4 @@ class VideoPlayerState(context: Context, val coroutineScope: CoroutineScope) {
     fun release() { player?.release(); player = null; stopJob?.cancel(); gestureHideJob?.cancel(); networkJob?.cancel(); onFinalPlaybackError = null }
 }
 
-@Composable fun rememberVideoPlayerState(url: String, context: Context = LocalContext.current, coroutineScope: CoroutineScope = rememberCoroutineScope(), onFinalPlaybackError: (() -> Unit)? = null): VideoPlayerState { val state = remember { VideoPlayerState(context, coroutineScope) }; state.onFinalPlaybackError = onFinalPlaybackError; LaunchedEffect(url) { state.updateUrl(url) }; DisposableEffect(state) { onDispose { state.release() } }; return state }
+@Composable fun rememberVideoPlayerState(url: String, headers: Map<String, String> = emptyMap(), context: Context = LocalContext.current, coroutineScope: CoroutineScope = rememberCoroutineScope(), onFinalPlaybackError: (() -> Unit)? = null): VideoPlayerState { val state = remember { VideoPlayerState(context, coroutineScope) }; state.onFinalPlaybackError = onFinalPlaybackError; LaunchedEffect(url, headers) { state.updateUrl(url, headers) }; DisposableEffect(state) { onDispose { state.release() } }; return state }
