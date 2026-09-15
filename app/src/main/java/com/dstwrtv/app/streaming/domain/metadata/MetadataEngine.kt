@@ -16,6 +16,7 @@ import kotlinx.coroutines.sync.withLock
 
 class MetadataEngine(
     providers: List<MetadataProvider>,
+    private val cache: MetadataCache = MetadataCache(),
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 ) {
     private val providers = providers.distinctBy { it.id }
@@ -23,38 +24,51 @@ class MetadataEngine(
     private val inFlight = mutableMapOf<String, Deferred<*>>()
 
     suspend fun popularMovies(page: Int = 1): Result<CatalogPage<Movie>> =
-        coalesced("popular-movies:$page") { aggregateMovies { it.popularMovies(page) } }
+        cached("popular-movies:$page") { coalesced("popular-movies:$page") { aggregateMovies { it.popularMovies(page) } } }
 
     suspend fun popularTvShows(page: Int = 1): Result<CatalogPage<TvShow>> =
-        coalesced("popular-tv:$page") { aggregateTvShows { it.popularTvShows(page) } }
+        cached("popular-tv:$page") { coalesced("popular-tv:$page") { aggregateTvShows { it.popularTvShows(page) } } }
 
     suspend fun searchMovies(query: String, page: Int = 1): Result<CatalogPage<Movie>> =
-        coalesced("search-movies:${query.trim().lowercase()}:$page") {
-            aggregateMovies { it.searchMovies(query, page) }
+        cached("search-movies:${query.trim().lowercase()}:$page") {
+            coalesced("search-movies:${query.trim().lowercase()}:$page") {
+                aggregateMovies { it.searchMovies(query, page) }
+            }
         }
 
     suspend fun searchTvShows(query: String, page: Int = 1): Result<CatalogPage<TvShow>> =
-        coalesced("search-tv:${query.trim().lowercase()}:$page") {
-            aggregateTvShows { it.searchTvShows(query, page) }
+        cached("search-tv:${query.trim().lowercase()}:$page") {
+            coalesced("search-tv:${query.trim().lowercase()}:$page") {
+                aggregateTvShows { it.searchTvShows(query, page) }
+            }
         }
 
     suspend fun movieDetails(providerId: String, preferredProvider: String? = null): Result<Movie> =
-        coalesced("movie-details:${preferredProvider.orEmpty()}:$providerId") {
-            firstSuccessful(providerId, preferredProvider) { it.movieDetails(providerId) }
+        cached("movie-details:${preferredProvider.orEmpty()}:$providerId") {
+            coalesced("movie-details:${preferredProvider.orEmpty()}:$providerId") {
+                firstSuccessful(providerId, preferredProvider) { it.movieDetails(providerId) }
+            }
         }
 
     suspend fun tvDetails(providerId: String, preferredProvider: String? = null): Result<TvShow> =
-        coalesced("tv-details:${preferredProvider.orEmpty()}:$providerId") {
-            firstSuccessful(providerId, preferredProvider) { it.tvDetails(providerId) }
+        cached("tv-details:${preferredProvider.orEmpty()}:$providerId") {
+            coalesced("tv-details:${preferredProvider.orEmpty()}:$providerId") {
+                firstSuccessful(providerId, preferredProvider) { it.tvDetails(providerId) }
+            }
         }
 
     suspend fun seasonDetails(
         providerId: String,
         seasonNumber: Int,
         preferredProvider: String? = null
-    ): Result<Pair<Season, List<Episode>>> = coalesced("season:$preferredProvider:$providerId:$seasonNumber") {
-        firstSuccessful(providerId, preferredProvider) { it.seasonDetails(providerId, seasonNumber) }
+    ): Result<Pair<Season, List<Episode>>> = cached("season:$preferredProvider:$providerId:$seasonNumber") {
+        coalesced("season:$preferredProvider:$providerId:$seasonNumber") {
+            firstSuccessful(providerId, preferredProvider) { it.seasonDetails(providerId, seasonNumber) }
+        }
     }
+
+    private suspend fun <T> cached(key: String, block: suspend () -> Result<T>): Result<T> =
+        cache.getOrLoad(key, block)
 
     private suspend fun aggregateMovies(
         call: suspend (MetadataProvider) -> Result<CatalogPage<Movie>>
