@@ -35,7 +35,7 @@ class CinemetaMetadataProvider(
 
     override suspend fun searchTvShows(query: String, page: Int): Result<CatalogPage<TvShow>> = runCatching {
         require(query.isNotBlank()) { "Search query is empty" }
-        val response = api.catalog("series", "imdbRating", search = query.trim(), skip = (page - 1) * pageSize)
+        val response = api.catalog("series", "top", search = query.trim(), skip = (page - 1) * pageSize)
         catalogTvShows(response.metas, page)
     }
 
@@ -101,7 +101,7 @@ class CinemetaMetadataProvider(
             voteCount = imdbVotes ?: 0,
             runtimeMinutes = parseRuntime(runtime),
             images = ImageSet(posterPath = poster, backdropPath = background, logoPath = logo),
-            provider = idProvider,
+            provider = "cinemeta",
             providerId = imdbId
         )
     }
@@ -122,7 +122,7 @@ class CinemetaMetadataProvider(
             numberOfSeasons = seasons.takeIf { it > 0 },
             numberOfEpisodes = episodes.takeIf { it > 0 },
             images = ImageSet(posterPath = poster, backdropPath = background, logoPath = logo),
-            provider = idProvider,
+            provider = "cinemeta",
             providerId = imdbId
         )
     }
@@ -138,6 +138,4 @@ class CinemetaMetadataProvider(
             ((digest[2].toInt() and 0xff) shl 8) or
             (digest[3].toInt() and 0xff)
     }
-
-    private val idProvider: String = "cinemeta"
 }
