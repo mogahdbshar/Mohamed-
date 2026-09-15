@@ -1,6 +1,7 @@
 package com.dstwrtv.app.streaming.data.remote
 
 import com.squareup.moshi.Json
+import com.squareup.moshi.JsonClass
 
 @JsonClass(generateAdapter = true)
 data class TvMazeSearchResultDto(
@@ -78,5 +79,6 @@ data class TvMazeEpisodeDto(
     @Json(name = "runtime") val runtime: Int? = null,
     @Json(name = "rating") val rating: TvMazeRatingDto? = null,
     @Json(name = "image") val image: TvMazeImageDto? = null,
+    @Json(name = "original") val original: String? = null,
     @Json(name = "summary") val summary: String? = null
 )
