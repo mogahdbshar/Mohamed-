@@ -11,8 +11,8 @@ import kotlinx.coroutines.sync.withLock
 /**
  * Small bounded process cache for metadata responses.
  * Fresh data is returned immediately. Stale data can be returned while a
- * single background refresh updates the entry. This prevents repeated screen
- * opens from multiplying upstream requests.
+ * single background refresh updates the entry. Failed Result values are not
+ * retained, so temporary provider outages do not poison the cache.
  */
 class MetadataCache(
     private val maxEntries: Int = 160,
@@ -53,6 +53,8 @@ class MetadataCache(
                 try {
                     val value = loader()
                     put(key, value)
+                } catch (_: Throwable) {
+                    // Keep the stale value when background refresh fails.
                 } finally {
                     mutex.withLock { refreshes.remove(key) }
                 }
@@ -61,9 +63,10 @@ class MetadataCache(
     }
 
     private suspend fun <T> put(key: String, value: T) {
+        if (value is Result<*> && value.isFailure) return
         val now = System.currentTimeMillis()
         mutex.withLock {
-            entries[key] = Entry(value, now + freshTtlMs, now + staleTtlMs)
+            entries[key] = Entry(value as Any, now + freshTtlMs, now + staleTtlMs)
             while (entries.size > maxEntries) {
                 entries.entries.iterator().next().also { entries.remove(it.key) }
             }
