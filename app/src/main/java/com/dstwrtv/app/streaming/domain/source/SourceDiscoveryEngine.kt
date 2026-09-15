@@ -6,7 +6,6 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
-/** Single entry point for automatic source discovery. */
 class SourceDiscoveryEngine(
     private val registry: SourceRegistry,
     private val sourceEngine: SourceEngine,
@@ -22,33 +21,17 @@ class SourceDiscoveryEngine(
         val deferred = mutex.withLock {
             inFlight[key] ?: scope.async {
                 val started = System.currentTimeMillis()
-                val providers = registry.all()
-                val resolution = sourceEngine.resolve(
-                    SourceRequest(
-                        mediaType = request.mediaType,
-                        provider = request.provider,
-                        providerId = request.providerId,
-                        seasonNumber = request.seasonNumber,
-                        episodeNumber = request.episodeNumber,
-                        preferredLanguage = request.preferredLanguage,
-                        title = request.title
-                    ), maxSources = 12
-                )
+                val resolution = sourceEngine.resolve(SourceRequest(
+                    mediaType = request.mediaType, provider = request.provider, providerId = request.providerId,
+                    seasonNumber = request.seasonNumber, episodeNumber = request.episodeNumber,
+                    preferredLanguage = request.preferredLanguage, title = request.title
+                ), maxSources = 12)
                 val sources = SourceSelectionPolicy.rank(resolution.sources, request.preferredLanguage, request.preferredQuality).take(12)
                 if (sources.isNotEmpty()) cache.put(key, sources)
-                SourceDiscoveryResult(
-                    sources = sources,
-                    attemptedProviders = providers.count { it.id.isNotBlank() },
-                    successfulProviders = if (sources.isEmpty()) 0 else providers.count { provider ->
-                        resolution.sources.any { source -> source.label.startsWith(provider.id, ignoreCase = true) }
-                    }.coerceAtLeast(1).coerceAtMost(providers.size),
-                    durationMs = System.currentTimeMillis() - started
-                )
+                SourceDiscoveryResult(sources, resolution.attemptedProviders, resolution.successfulProviders, System.currentTimeMillis() - started)
             }.also { inFlight[key] = it }
         }
-        return try { deferred.await() } finally {
-            mutex.withLock { if (inFlight[key] === deferred) inFlight.remove(key) }
-        }
+        return try { deferred.await() } finally { mutex.withLock { if (inFlight[key] === deferred) inFlight.remove(key) } }
     }
 
     private fun requestKey(request: SourceDiscoveryRequest): String = listOf(
