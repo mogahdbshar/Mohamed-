@@ -10,7 +10,8 @@ data class SourceDiscoveryRequest(
     val seasonNumber: Int? = null,
     val episodeNumber: Int? = null,
     val preferredLanguage: String? = null,
-    val preferredQuality: Int? = null
+    val preferredQuality: Int? = null,
+    val title: String? = null
 )
 
 data class SourceDiscoveryResult(
