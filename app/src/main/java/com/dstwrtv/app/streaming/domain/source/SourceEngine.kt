@@ -1,7 +1,7 @@
 package com.dstwrtv.app.streaming.domain.source
 
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -11,11 +11,21 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
 
+/**
+ * Resolves playback candidates without relaying video bytes through the app.
+ * The provider supplier keeps the engine synchronized with the live registry.
+ */
 class SourceEngine(
-    private val providers: List<SourceProvider>,
+    private val providersSupplier: () -> List<SourceProvider>,
     private val healthStore: SourceHealthStore = InMemorySourceHealthStore(),
     private val maxConcurrentProviders: Int = 4
 ) {
+    constructor(
+        providers: List<SourceProvider>,
+        healthStore: SourceHealthStore = InMemorySourceHealthStore(),
+        maxConcurrentProviders: Int = 4
+    ) : this({ providers }, healthStore, maxConcurrentProviders)
+
     private val mutex = Mutex()
     private val inFlight = mutableMapOf<String, Deferred<SourceResolution>>()
     private val semaphore = Semaphore(maxConcurrentProviders.coerceAtLeast(1))
@@ -25,8 +35,11 @@ class SourceEngine(
         val deferred = mutex.withLock {
             inFlight[key] ?: coroutineScope {
                 async(Dispatchers.IO) {
-                    try { resolveInternal(request, maxSources) }
-                    finally { mutex.withLock { inFlight.remove(key) } }
+                    try {
+                        resolveInternal(request, maxSources)
+                    } finally {
+                        mutex.withLock { if (inFlight[key] === this) inFlight.remove(key) }
+                    }
                 }.also { inFlight[key] = it }
             }
         }
@@ -37,7 +50,8 @@ class SourceEngine(
         withContext(Dispatchers.IO) {
             val now = System.currentTimeMillis()
             val candidates = SourceProviderHealthRanker.rank(
-                providers.filter { it.id.isNotBlank() }
+                providersSupplier()
+                    .filter { it.id.isNotBlank() }
                     .filterNot { healthStore.isTemporarilyUnavailable(it.id, now) },
                 healthStore.snapshot()
             )
@@ -47,7 +61,12 @@ class SourceEngine(
                         semaphore.withPermit {
                             val started = System.nanoTime()
                             runCatching { provider.resolve(request) }
-                                .onSuccess { healthStore.recordSuccess(provider.id, (System.nanoTime() - started) / 1_000_000L) }
+                                .onSuccess {
+                                    healthStore.recordSuccess(
+                                        provider.id,
+                                        (System.nanoTime() - started) / 1_000_000L
+                                    )
+                                }
                                 .onFailure { healthStore.recordFailure(provider.id) }
                                 .getOrDefault(emptyList())
                                 .filter(::isSafeDirectCandidate)
@@ -57,8 +76,10 @@ class SourceEngine(
                 }.awaitAll()
             }
             val sources = resolved.flatten()
-                .sortedWith(compareByDescending<Pair<Int, PlaybackSource>> { it.first }
-                    .thenByDescending { it.second.quality ?: 0 })
+                .sortedWith(
+                    compareByDescending<Pair<Int, PlaybackSource>> { it.first }
+                        .thenByDescending { it.second.quality ?: 0 }
+                )
                 .map { it.second }
                 .distinctBy { normalizeUrl(it.url) }
                 .take(maxSources.coerceAtLeast(1))
@@ -72,5 +93,6 @@ class SourceEngine(
     }
 
     private fun normalizeUrl(url: String): String = url.trim().removeSuffix("/")
+
     fun health(): List<SourceProviderHealth> = healthStore.snapshot()
 }
