@@ -1,5 +1,6 @@
-# بناء يدوي فقط لتوفير دقائق GitHub Actions.
-# لن يبدأ البناء عند كل push أو pull request.
+# بناء يدوي فقط.
+# لا يتم تشغيل البناء عند push أو pull request أو أي تغيير تلقائي.
+# يبدأ البناء فقط عندما يضغط المستخدم Run workflow من GitHub Actions.
 
 name: بناء APK يدوياً (DSTWR TV)
 
