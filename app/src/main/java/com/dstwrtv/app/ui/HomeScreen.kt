@@ -22,6 +22,7 @@ import com.dstwrtv.app.ui.player.components.ActiveChannelPlayerSection
 import com.dstwrtv.app.viewmodel.MainViewModel
 import com.dstwrtv.app.streaming.ui.StreamingView
 import com.dstwrtv.app.streaming.ui.StreamingViewModel
+import com.dstwrtv.app.streaming.domain.source.PlaybackSource
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -34,7 +35,7 @@ fun HomeScreen(viewModel: MainViewModel, isInPipMode: Boolean = false) {
     var activeThemeId by remember { mutableStateOf(sharedPrefs.getString("selected_theme_id", "crimson_gold") ?: "crimson_gold") }
     val channels by viewModel.filteredChannels.collectAsState(); val favorites by viewModel.favoriteChannels.collectAsState(); val selectedChannel by viewModel.selectedChannel.collectAsState(); val isLoading by viewModel.isLoading.collectAsState(); val syncError by viewModel.syncError.collectAsState(); val searchQuery by viewModel.searchQuery.collectAsState(); val configUpdated by viewModel.configUpdated.collectAsState()
     val streamingViewModel: StreamingViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
-    var currentTab by remember { mutableStateOf("home") }; var showSplash by remember { mutableStateOf(true) }; var showOnboarding by remember(remoteConfigManager.showOnboardingAlways) { mutableStateOf(!sharedPrefs.getBoolean("is_onboarded_v2_new", false) || remoteConfigManager.showOnboardingAlways) }; var isFullscreen by remember { mutableStateOf(false) }; var vodUrl by remember { mutableStateOf("") }; var vodTitle by remember { mutableStateOf("") }
+    var currentTab by remember { mutableStateOf("home") }; var showSplash by remember { mutableStateOf(true) }; var showOnboarding by remember(remoteConfigManager.showOnboardingAlways) { mutableStateOf(!sharedPrefs.getBoolean("is_onboarded_v2_new", false) || remoteConfigManager.showOnboardingAlways) }; var isFullscreen by remember { mutableStateOf(false) }; var vodUrl by remember { mutableStateOf("") }; var vodTitle by remember { mutableStateOf("") }; var vodHeaders by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     val snackbarHostState = remember { SnackbarHostState() }; val coroutineScope = rememberCoroutineScope(); var activeBouquetDetail by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(activeThemeId, selectedChannel) { applyThemeStyle(activeThemeId); if (activeThemeId == "dynamic_chameleon") { DSTWRTheme.PrimaryRed = getChannelAmbientColor(selectedChannel); DSTWRTheme.AccentAmber = Color(0xFFFAFAFA); DSTWRTheme.PureBlack = Color(0xFF030305); DSTWRTheme.SurfaceDark = Color(0x1AFFFFFF) } }
@@ -51,7 +52,7 @@ fun HomeScreen(viewModel: MainViewModel, isInPipMode: Boolean = false) {
                     if (!isFullscreen && !isInPipMode) DSTWRHeader(onActionClick = { currentTab = "settings"; activeBouquetDetail = null })
                     if (vodUrl.isNotBlank()) {
                         Column(if (isFullscreen) Modifier.fillMaxSize() else Modifier.fillMaxWidth()) {
-                            VideoPlayer(url = vodUrl, channelName = vodTitle, isFullscreen = isFullscreen, onFullscreenToggle = { isFullscreen = !isFullscreen }, onClose = { vodUrl = ""; vodTitle = ""; isFullscreen = false }, modifier = if (isFullscreen) Modifier.fillMaxSize() else Modifier.fillMaxWidth().aspectRatio(16f / 9f), isInPipMode = isInPipMode)
+                            VideoPlayer(url = vodUrl, channelName = vodTitle, headers = vodHeaders, isFullscreen = isFullscreen, onFullscreenToggle = { isFullscreen = !isFullscreen }, onClose = { vodUrl = ""; vodTitle = ""; vodHeaders = emptyMap(); isFullscreen = false }, modifier = if (isFullscreen) Modifier.fillMaxSize() else Modifier.fillMaxWidth().aspectRatio(16f / 9f), isInPipMode = isInPipMode)
                             if (!isFullscreen && !isInPipMode) Text(vodTitle, color = Color.White, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
                         }
                     }
@@ -59,7 +60,7 @@ fun HomeScreen(viewModel: MainViewModel, isInPipMode: Boolean = false) {
                     if (!isFullscreen && !isInPipMode) Box(Modifier.weight(1f)) {
                         when (currentTab) {
                             "home" -> HomeView(channels = channels, selectedChannel = selectedChannel, isLoading = isLoading, syncError = syncError, searchQuery = searchQuery, onSearchChange = viewModel::setSearchQuery, onChannelSelect = viewModel::selectChannel, onToggleFavorite = viewModel::toggleFavorite, favorites = favorites, onSwitchTab = { tab, bouquet -> currentTab = tab; activeBouquetDetail = bouquet })
-                            "streaming" -> StreamingView(streamingViewModel, onOpenPlayer = { url, title -> viewModel.selectChannel(null); vodUrl = url; vodTitle = title; currentTab = "streaming" })
+                            "streaming" -> StreamingView(streamingViewModel, onOpenPlayer = { source: PlaybackSource, title: String -> viewModel.selectChannel(null); vodUrl = source.url; vodTitle = title; vodHeaders = source.headers; currentTab = "streaming" })
                             "channels" -> ChannelsView(channels = channels, selectedChannel = selectedChannel, onChannelSelect = viewModel::selectChannel, onToggleFavorite = viewModel::toggleFavorite, favorites = favorites, searchQuery = searchQuery, onSearchChange = viewModel::setSearchQuery)
                             "bouquets" -> BouquetsView(channels = channels, selectedChannel = selectedChannel, onChannelSelect = viewModel::selectChannel, onToggleFavorite = viewModel::toggleFavorite, favorites = favorites, activeBouquetDetail = activeBouquetDetail, onSelectBouquet = { activeBouquetDetail = it }, onBackToGrid = { activeBouquetDetail = null })
                             "favorites" -> FavoritesView(favorites = favorites, selectedChannel = selectedChannel, onChannelSelect = viewModel::selectChannel, onToggleFavorite = viewModel::toggleFavorite)
