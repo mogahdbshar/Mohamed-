@@ -35,11 +35,11 @@ import com.dstwrtv.app.streaming.domain.source.SourceDiscoveryResult
 import com.dstwrtv.app.ui.components.DSTWRTheme
 
 @Composable
-fun StreamingView(viewModel: StreamingViewModel, onOpenPlayer: (String, String) -> Unit = { _, _ -> }) {
+fun StreamingView(viewModel: StreamingViewModel, onOpenPlayer: (PlaybackSource, String) -> Unit = { _, _ -> }) {
     val query by viewModel.query.collectAsState(); val movies by viewModel.movies.collectAsState(); val shows by viewModel.shows.collectAsState(); val searchMovies by viewModel.searchMovies.collectAsState(); val searchShows by viewModel.searchShows.collectAsState(); val movie by viewModel.selectedMovie.collectAsState(); val show by viewModel.selectedShow.collectAsState(); val seasons by viewModel.seasons.collectAsState(); val episodes by viewModel.episodes.collectAsState(); val result by viewModel.sourceResult.collectAsState(); val selected by viewModel.selectedSource.collectAsState(); val loading by viewModel.loading.collectAsState(); val error by viewModel.error.collectAsState()
     when {
-        movie != null -> MovieDetailsScreen(movie!!, result, selected, loading, error, viewModel::closeDetails, { viewModel.discoverMovie(movie!!) }, { viewModel.selectSource(it); onOpenPlayer(it.url, movie!!.title) })
-        show != null -> TvDetailsScreen(show!!, seasons, episodes, result, selected, loading, error, viewModel::closeDetails, { viewModel.openSeason(show!!, it) }, { viewModel.discoverEpisode(show!!, it) }, { viewModel.selectSource(it); onOpenPlayer(it.url, "${show!!.name} - ${it.label}") })
+        movie != null -> MovieDetailsScreen(movie!!, result, selected, loading, error, viewModel::closeDetails, { viewModel.discoverMovie(movie!!) }, { viewModel.selectSource(it); onOpenPlayer(it, movie!!.title) })
+        show != null -> TvDetailsScreen(show!!, seasons, episodes, result, selected, loading, error, viewModel::closeDetails, { viewModel.openSeason(show!!, it) }, { viewModel.discoverEpisode(show!!, it) }, { viewModel.selectSource(it); onOpenPlayer(it, show!!.name) })
         else -> StreamingHomeScreen(query, if (query.isBlank()) movies else searchMovies, if (query.isBlank()) shows else searchShows, loading, viewModel::setQuery, viewModel::openMovie, viewModel::openShow, viewModel::refreshCatalog, error)
     }
 }
