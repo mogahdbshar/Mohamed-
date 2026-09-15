@@ -11,12 +11,14 @@ import com.dstwrtv.app.streaming.domain.model.TvShow
 import com.dstwrtv.app.streaming.domain.source.PlaybackSource
 import com.dstwrtv.app.streaming.domain.source.SourceDiscoveryRequest
 import com.dstwrtv.app.streaming.domain.source.SourceDiscoveryResult
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import org.json.JSONArray
@@ -135,66 +137,33 @@ class StreamingViewModel : ViewModel() {
 
     private suspend fun translateMovies(items: List<Movie>): List<Movie> = items.map { translateMovie(it) }
     private suspend fun translateShows(items: List<TvShow>): List<TvShow> = items.map { translateShow(it) }
-    private suspend fun translateMovie(item: Movie): Movie = item.copy(
-        title = translator.translate(item.title),
-        overview = item.overview?.let { translator.translate(it) },
-        originalTitle = item.originalTitle
-    )
-    private suspend fun translateShow(item: TvShow): TvShow = item.copy(
-        name = translator.translate(item.name),
-        overview = item.overview?.let { translator.translate(it) },
-        originalName = item.originalName
-    )
-    private suspend fun translateSeason(item: Season): Season = item.copy(
-        name = translator.translate(item.name),
-        overview = item.overview?.let { translator.translate(it) }
-    )
-    private suspend fun translateEpisodes(items: List<Episode>): List<Episode> = items.map { it.copy(
-        name = translator.translate(it.name),
-        overview = it.overview?.let { text -> translator.translate(text) }
-    ) }
+    private suspend fun translateMovie(item: Movie): Movie = item.copy(title = translator.translate(item.title), overview = item.overview?.let { translator.translate(it) }, originalTitle = item.originalTitle)
+    private suspend fun translateShow(item: TvShow): TvShow = item.copy(name = translator.translate(item.name), overview = item.overview?.let { translator.translate(it) }, originalName = item.originalName)
+    private suspend fun translateSeason(item: Season): Season = item.copy(name = translator.translate(item.name), overview = item.overview?.let { translator.translate(it) })
+    private suspend fun translateEpisodes(items: List<Episode>): List<Episode> = items.map { it.copy(name = translator.translate(it.name), overview = it.overview?.let { text -> translator.translate(text) }) }
 }
 
 private class ArabicTranslator {
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(8, TimeUnit.SECONDS)
-        .readTimeout(10, TimeUnit.SECONDS)
-        .build()
-    private val cache = object : LinkedHashMap<String, String>(256, 0.75f, true) {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, String>?) = size > 256
-    }
-
-    @Synchronized
-    private fun cached(text: String): String? = cache[text]
-
-    @Synchronized
-    private fun put(text: String, value: String) { cache[text] = value }
+    private val client = OkHttpClient.Builder().connectTimeout(8, TimeUnit.SECONDS).readTimeout(10, TimeUnit.SECONDS).build()
+    private val cache = object : LinkedHashMap<String, String>(256, 0.75f, true) { override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, String>?) = size > 256 }
+    @Synchronized private fun cached(text: String): String? = cache[text]
+    @Synchronized private fun put(text: String, value: String) { cache[text] = value }
 
     suspend fun translate(text: String): String {
         val value = text.trim()
         if (value.isBlank() || value.any { it in '\u0600'..'\u06FF' }) return text
         cached(value)?.let { return it }
-        return runCatching {
-            val url = "https://translate.googleapis.com/translate_a/single".toHttpUrl().newBuilder()
-                .addQueryParameter("client", "gtx")
-                .addQueryParameter("sl", "auto")
-                .addQueryParameter("tl", "ar")
-                .addQueryParameter("dt", "t")
-                .addQueryParameter("q", value)
-                .build()
-            client.newCall(okhttp3.Request.Builder().url(url).get().build()).execute().use { response ->
-                if (!response.isSuccessful) return@runCatching text
-                val raw = response.body?.string().orEmpty()
-                val array = JSONArray(raw)
-                val chunks = array.optJSONArray(0) ?: return@runCatching text
-                val translated = buildString {
-                    for (i in 0 until chunks.length()) {
-                        val chunk = chunks.optJSONArray(i)
-                        if (chunk != null) append(chunk.optString(0))
-                    }
-                }.trim()
-                translated.takeIf { it.isNotBlank() }?.also { put(value, it) } ?: text
-            }
-        }.getOrDefault(text)
+        return withContext(Dispatchers.IO) {
+            runCatching {
+                val url = "https://translate.googleapis.com/translate_a/single".toHttpUrl().newBuilder()
+                    .addQueryParameter("client", "gtx").addQueryParameter("sl", "auto").addQueryParameter("tl", "ar").addQueryParameter("dt", "t").addQueryParameter("q", value).build()
+                client.newCall(okhttp3.Request.Builder().url(url).get().build()).execute().use { response ->
+                    if (!response.isSuccessful) return@runCatching text
+                    val chunks = JSONArray(response.body?.string().orEmpty()).optJSONArray(0) ?: return@runCatching text
+                    val translated = buildString { for (i in 0 until chunks.length()) chunks.optJSONArray(i)?.let { append(it.optString(0)) } }.trim()
+                    translated.takeIf { it.isNotBlank() }?.also { put(value, it) } ?: text
+                }
+            }.getOrDefault(text)
+        }
     }
 }
