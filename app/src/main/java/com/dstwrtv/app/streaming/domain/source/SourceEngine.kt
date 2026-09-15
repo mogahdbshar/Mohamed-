@@ -38,7 +38,7 @@ class SourceEngine(
                     try {
                         resolveInternal(request, maxSources)
                     } finally {
-                        mutex.withLock { if (inFlight[key] === this) inFlight.remove(key) }
+                        mutex.withLock { inFlight.remove(key) }
                     }
                 }.also { inFlight[key] = it }
             }
