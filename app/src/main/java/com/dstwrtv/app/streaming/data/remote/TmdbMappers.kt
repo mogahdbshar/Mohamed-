@@ -12,7 +12,9 @@ fun TmdbMovieDto.toDomain() = Movie(
     voteCount = voteCount,
     runtimeMinutes = runtime,
     genreIds = genreIds.orEmpty(),
-    images = ImageSet(posterPath = posterPath, backdropPath = backdropPath)
+    images = ImageSet(posterPath = posterPath, backdropPath = backdropPath),
+    provider = "tmdb",
+    providerId = id.toString()
 )
 
 fun TmdbTvDto.toDomain() = TvShow(
@@ -26,7 +28,9 @@ fun TmdbTvDto.toDomain() = TvShow(
     numberOfSeasons = numberOfSeasons,
     numberOfEpisodes = numberOfEpisodes,
     genreIds = genreIds.orEmpty(),
-    images = ImageSet(posterPath = posterPath, backdropPath = backdropPath)
+    images = ImageSet(posterPath = posterPath, backdropPath = backdropPath),
+    provider = "tmdb",
+    providerId = id.toString()
 )
 
 fun TmdbSeasonDto.toDomain(tvShowId: Int) = Season(
