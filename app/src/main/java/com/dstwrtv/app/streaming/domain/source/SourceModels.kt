@@ -3,8 +3,8 @@ package com.dstwrtv.app.streaming.domain.source
 import com.dstwrtv.app.streaming.domain.model.MediaType
 
 /**
- * A playback candidate returned by a source provider.
- * The URL is consumed directly by the device player. This layer never proxies video.
+ * A playback candidate consumed directly by the device player.
+ * The application does not proxy or relay the video bytes.
  */
 data class PlaybackSource(
     val url: String,
@@ -26,11 +26,17 @@ data class SourceRequest(
     val episodeNumber: Int? = null,
     val preferredLanguage: String? = null
 ) {
-    /** Stable identity for providers that do not use TMDB IDs. */
     val contentKey: String
         get() = providerId?.let { "${provider.orEmpty()}:$it" }
             ?: tmdbId?.toString()
             ?: error("A providerId or tmdbId is required")
+
+    val episodeKey: String
+        get() = buildString {
+            append(contentKey)
+            seasonNumber?.let { append(":s").append(it) }
+            episodeNumber?.let { append(":e").append(it) }
+        }
 }
 
 data class SourceProviderHealth(
