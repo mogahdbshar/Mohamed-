@@ -1,11 +1,8 @@
 package com.dstwrtv.app.streaming.domain.source
 
 /**
- * Describes a source adapter without embedding any concrete third-party
- * service or URL in the application UI.
- *
- * Providers may expose direct HLS, DASH or progressive HTTP candidates.
- * Video bytes are never relayed through the application backend.
+ * Capability contract for internal source adapters.
+ * Adapters return candidates only; the app never proxies video bytes.
  */
 data class SourceProviderCapabilities(
     val supportsMovies: Boolean = false,
