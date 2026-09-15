@@ -15,6 +15,8 @@ data class MovieEntity(
     val genreIds: String,
     val posterPath: String?,
     val backdropPath: String?,
+    val provider: String = "tmdb",
+    val providerId: String? = null,
     val updatedAt: Long
 )
 
@@ -32,6 +34,8 @@ data class TvShowEntity(
     val genreIds: String,
     val posterPath: String?,
     val backdropPath: String?,
+    val provider: String = "tmdb",
+    val providerId: String? = null,
     val updatedAt: Long
 )
 
@@ -44,6 +48,8 @@ data class SeasonEntity(
     val airDate: String?,
     val episodeCount: Int,
     val posterPath: String?,
+    val provider: String = "tmdb",
+    val providerId: String? = null,
     val updatedAt: Long
 )
 
@@ -58,6 +64,8 @@ data class EpisodeEntity(
     val runtimeMinutes: Int?,
     val stillPath: String?,
     val rating: Double,
+    val provider: String = "tmdb",
+    val providerId: String? = null,
     val updatedAt: Long
 )
 
