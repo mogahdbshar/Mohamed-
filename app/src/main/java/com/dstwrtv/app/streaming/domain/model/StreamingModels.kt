@@ -16,7 +16,9 @@ data class Movie(
     val voteCount: Int = 0,
     val runtimeMinutes: Int? = null,
     val genreIds: List<Int> = emptyList(),
-    val images: ImageSet = ImageSet()
+    val images: ImageSet = ImageSet(),
+    val provider: String = "tmdb",
+    val providerId: String? = null
 )
 
 data class TvShow(
@@ -30,7 +32,9 @@ data class TvShow(
     val numberOfSeasons: Int? = null,
     val numberOfEpisodes: Int? = null,
     val genreIds: List<Int> = emptyList(),
-    val images: ImageSet = ImageSet()
+    val images: ImageSet = ImageSet(),
+    val provider: String = "tmdb",
+    val providerId: String? = null
 )
 
 data class Season(
