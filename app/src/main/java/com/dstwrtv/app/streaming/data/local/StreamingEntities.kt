@@ -77,7 +77,7 @@ data class WatchHistoryEntity(
 data class StreamingFavoriteEntity(
     val mediaType: String,
     val tmdbId: Int,
-    val seasonNumber: Int? = null,
-    val episodeNumber: Int? = null,
+    val seasonNumber: Int = 0,
+    val episodeNumber: Int = 0,
     val addedAt: Long = System.currentTimeMillis()
 )
