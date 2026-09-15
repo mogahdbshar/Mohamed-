@@ -4,11 +4,13 @@ import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.max
 
 class InMemorySourceHealthStore(
+    private val failureThreshold: Int = 3,
     private val failureCooldownMs: Long = 5 * 60 * 1000L
 ) : SourceHealthStore {
     private data class Stats(
         var success: Int = 0,
         var failure: Int = 0,
+        var consecutiveFailures: Int = 0,
         var totalLatencyMs: Long = 0L,
         var lastFailureAt: Long? = null,
         var disabledUntil: Long? = null
@@ -23,6 +25,7 @@ class InMemorySourceHealthStore(
         val value = stats.computeIfAbsent(providerId) { Stats() }
         synchronized(value) {
             value.success++
+            value.consecutiveFailures = 0
             value.totalLatencyMs += max(0L, latencyMs)
             value.disabledUntil = null
         }
@@ -32,8 +35,11 @@ class InMemorySourceHealthStore(
         val value = stats.computeIfAbsent(providerId) { Stats() }
         synchronized(value) {
             value.failure++
+            value.consecutiveFailures++
             value.lastFailureAt = nowMs
-            value.disabledUntil = nowMs + failureCooldownMs
+            if (value.consecutiveFailures >= failureThreshold) {
+                value.disabledUntil = nowMs + failureCooldownMs
+            }
         }
     }
 
