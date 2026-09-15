@@ -29,14 +29,13 @@ class PlaybackSourceSelector(
 
     private fun normalize(url: String): String = url.trim().removeSuffix("/")
 
-    private fun qualityScore(value: String?): Int = when (value?.lowercase()) {
-        "8k" -> 8
-        "4k", "2160p" -> 7
-        "1440p" -> 6
-        "1080p", "fhd" -> 5
-        "720p", "hd" -> 4
-        "480p" -> 3
-        "360p" -> 2
+    private fun qualityScore(value: Int?): Int = when (value) {
+        2160, 4320 -> 7
+        1440 -> 6
+        1080 -> 5
+        720 -> 4
+        480 -> 3
+        360 -> 2
         else -> 0
     }
 }
