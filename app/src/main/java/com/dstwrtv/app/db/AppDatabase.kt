@@ -5,8 +5,12 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import com.dstwrtv.app.model.Channel
+import com.dstwrtv.app.streaming.data.local.CatalogCacheDao
 import com.dstwrtv.app.streaming.data.local.EpisodeDao
 import com.dstwrtv.app.streaming.data.local.EpisodeEntity
+import com.dstwrtv.app.streaming.data.local.MediaIdentityDao
+import com.dstwrtv.app.streaming.data.local.MediaIdentityEntity
+import com.dstwrtv.app.streaming.data.local.CatalogCacheEntity
 import com.dstwrtv.app.streaming.data.local.MovieDao
 import com.dstwrtv.app.streaming.data.local.MovieEntity
 import com.dstwrtv.app.streaming.data.local.SeasonDao
@@ -26,9 +30,11 @@ import com.dstwrtv.app.streaming.data.local.WatchHistoryEntity
         SeasonEntity::class,
         EpisodeEntity::class,
         WatchHistoryEntity::class,
-        StreamingFavoriteEntity::class
+        StreamingFavoriteEntity::class,
+        MediaIdentityEntity::class,
+        CatalogCacheEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -39,6 +45,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun episodeDao(): EpisodeDao
     abstract fun watchHistoryDao(): WatchHistoryDao
     abstract fun streamingFavoriteDao(): StreamingFavoriteDao
+    abstract fun mediaIdentityDao(): MediaIdentityDao
+    abstract fun catalogCacheDao(): CatalogCacheDao
 
     companion object {
         @Volatile
@@ -51,7 +59,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "destour_sport_database"
                 )
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .build()
                 INSTANCE = instance
                 instance
