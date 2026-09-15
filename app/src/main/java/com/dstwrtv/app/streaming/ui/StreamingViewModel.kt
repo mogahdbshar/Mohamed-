@@ -8,8 +8,11 @@ import com.dstwrtv.app.streaming.domain.model.MediaType
 import com.dstwrtv.app.streaming.domain.model.Movie
 import com.dstwrtv.app.streaming.domain.model.Season
 import com.dstwrtv.app.streaming.domain.model.TvShow
+import com.dstwrtv.app.streaming.domain.source.PlaybackSource
 import com.dstwrtv.app.streaming.domain.source.SourceDiscoveryRequest
 import com.dstwrtv.app.streaming.domain.source.SourceDiscoveryResult
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -18,7 +21,6 @@ import kotlinx.coroutines.launch
 class StreamingViewModel : ViewModel() {
     private val engine = StreamingContainer.metadataEngine
     private val sourceEngine = StreamingContainer.sourceDiscoveryEngine
-
     private val _movies = MutableStateFlow<List<Movie>>(emptyList())
     val movies: StateFlow<List<Movie>> = _movies.asStateFlow()
     private val _shows = MutableStateFlow<List<TvShow>>(emptyList())
@@ -37,8 +39,8 @@ class StreamingViewModel : ViewModel() {
     val episodes: StateFlow<List<Episode>> = _episodes.asStateFlow()
     private val _sourceResult = MutableStateFlow<SourceDiscoveryResult?>(null)
     val sourceResult: StateFlow<SourceDiscoveryResult?> = _sourceResult.asStateFlow()
-    private val _selectedSource = MutableStateFlow<com.dstwrtv.app.streaming.domain.source.PlaybackSource?>(null)
-    val selectedSource: StateFlow<com.dstwrtv.app.streaming.domain.source.PlaybackSource?> = _selectedSource.asStateFlow()
+    private val _selectedSource = MutableStateFlow<PlaybackSource?>(null)
+    val selectedSource: StateFlow<PlaybackSource?> = _selectedSource.asStateFlow()
     private val _loading = MutableStateFlow(false)
     val loading: StateFlow<Boolean> = _loading.asStateFlow()
     private val _error = MutableStateFlow<String?>(null)
@@ -50,9 +52,13 @@ class StreamingViewModel : ViewModel() {
 
     fun refreshCatalog() = viewModelScope.launch {
         _loading.value = true; _error.value = null
-        val movie = engine.popularMovies(); val tv = engine.popularTvShows()
-        movie.onSuccess { _movies.value = it.items }.onFailure { _error.value = it.message }
-        tv.onSuccess { _shows.value = it.items }.onFailure { if (_error.value == null) _error.value = it.message }
+        val movie = async { engine.popularMovies() }
+        val tv = async { engine.popularTvShows() }
+        val (movieResult, tvResult) = awaitAll(movie, tv)
+        @Suppress("UNCHECKED_CAST") val m = movieResult as Result<com.dstwrtv.app.streaming.domain.model.CatalogPage<Movie>>
+        @Suppress("UNCHECKED_CAST") val t = tvResult as Result<com.dstwrtv.app.streaming.domain.model.CatalogPage<TvShow>>
+        m.onSuccess { _movies.value = it.items }.onFailure { _error.value = it.message }
+        t.onSuccess { _shows.value = it.items }.onFailure { if (_error.value == null) _error.value = it.message }
         _loading.value = false
     }
 
@@ -61,14 +67,9 @@ class StreamingViewModel : ViewModel() {
         if (value.isBlank()) { _searchMovies.value = emptyList(); _searchShows.value = emptyList(); return }
         viewModelScope.launch {
             _loading.value = true
-            val (m, t) = kotlinx.coroutines.awaitAll(
-                kotlinx.coroutines.async { engine.searchMovies(value) },
-                kotlinx.coroutines.async { engine.searchTvShows(value) }
-            )
-            @Suppress("UNCHECKED_CAST")
-            _searchMovies.value = (m as Result<com.dstwrtv.app.streaming.domain.model.CatalogPage<Movie>>).getOrNull()?.items.orEmpty()
-            @Suppress("UNCHECKED_CAST")
-            _searchShows.value = (t as Result<com.dstwrtv.app.streaming.domain.model.CatalogPage<TvShow>>).getOrNull()?.items.orEmpty()
+            val (m, t) = awaitAll(async { engine.searchMovies(value) }, async { engine.searchTvShows(value) })
+            @Suppress("UNCHECKED_CAST") _searchMovies.value = (m as Result<com.dstwrtv.app.streaming.domain.model.CatalogPage<Movie>>).getOrNull()?.items.orEmpty()
+            @Suppress("UNCHECKED_CAST") _searchShows.value = (t as Result<com.dstwrtv.app.streaming.domain.model.CatalogPage<TvShow>>).getOrNull()?.items.orEmpty()
             _loading.value = false
         }
     }
@@ -88,24 +89,21 @@ class StreamingViewModel : ViewModel() {
     fun openSeason(show: TvShow, season: Season) = viewModelScope.launch {
         val providerId = show.providerId ?: return@launch
         _loading.value = true
-        engine.seasonDetails(providerId, season.seasonNumber, show.provider)
-            .onSuccess { _episodes.value = it.second }
-            .onFailure { _error.value = it.message }
+        engine.seasonDetails(providerId, season.seasonNumber, show.provider).onSuccess { _episodes.value = it.second }.onFailure { _error.value = it.message }
         _loading.value = false
     }
 
-    fun discoverMovie(movie: Movie, preferredLanguage: String? = null, preferredQuality: Int? = null) = discover(MediaType.MOVIE, movie.provider, movie.providerId ?: movie.id.toString(), null, null, preferredLanguage, preferredQuality)
-    fun discoverEpisode(show: TvShow, episode: Episode, preferredLanguage: String? = null, preferredQuality: Int? = null) = discover(MediaType.TV_SHOW, show.provider, show.providerId ?: show.id.toString(), episode.seasonNumber, episode.episodeNumber, preferredLanguage, preferredQuality)
+    fun discoverMovie(movie: Movie, preferredLanguage: String? = null, preferredQuality: Int? = null) = discover(MediaType.MOVIE, movie.provider, movie.providerId ?: movie.id.toString(), null, null, preferredLanguage, preferredQuality, movie.title)
+    fun discoverEpisode(show: TvShow, episode: Episode, preferredLanguage: String? = null, preferredQuality: Int? = null) = discover(MediaType.TV_SHOW, show.provider, show.providerId ?: show.id.toString(), episode.seasonNumber, episode.episodeNumber, preferredLanguage, preferredQuality, episode.name)
 
-    private fun discover(type: MediaType, provider: String, providerId: String, season: Int?, episode: Int?, language: String?, quality: Int?) = viewModelScope.launch {
+    private fun discover(type: MediaType, provider: String, providerId: String, season: Int?, episode: Int?, language: String?, quality: Int?, title: String?) = viewModelScope.launch {
         _loading.value = true; _sourceResult.value = null; _selectedSource.value = null; _error.value = null
-        val result = sourceEngine.discover(SourceDiscoveryRequest(type, provider, providerId, season, episode, language, quality))
-        _sourceResult.value = result
-        _selectedSource.value = result.sources.firstOrNull()
+        val result = sourceEngine.discover(SourceDiscoveryRequest(type, provider, providerId, season, episode, language, quality, title))
+        _sourceResult.value = result; _selectedSource.value = result.sources.firstOrNull()
         if (result.sources.isEmpty()) _error.value = "لم يتم العثور على مصدر تشغيل متاح حاليًا."
         _loading.value = false
     }
 
-    fun selectSource(source: com.dstwrtv.app.streaming.domain.source.PlaybackSource) { _selectedSource.value = source }
+    fun selectSource(source: PlaybackSource) { _selectedSource.value = source }
     fun clearPlayback() { _sourceResult.value = null; _selectedSource.value = null }
 }
