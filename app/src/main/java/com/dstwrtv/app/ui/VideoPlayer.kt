@@ -34,9 +34,9 @@ import kotlinx.coroutines.delay
 
 @OptIn(UnstableApi::class)
 @Composable
-fun VideoPlayer(url: String, channelName: String = "", isFullscreen: Boolean, onFullscreenToggle: () -> Unit, onClose: () -> Unit, modifier: Modifier = Modifier, isInPipMode: Boolean = false, onPlaybackError: () -> Unit = {}) {
+fun VideoPlayer(url: String, channelName: String = "", headers: Map<String, String> = emptyMap(), isFullscreen: Boolean, onFullscreenToggle: () -> Unit, onClose: () -> Unit, modifier: Modifier = Modifier, isInPipMode: Boolean = false, onPlaybackError: () -> Unit = {}) {
     val context = LocalContext.current
-    val state = rememberVideoPlayerState(url = url, onFinalPlaybackError = onPlaybackError)
+    val state = rememberVideoPlayerState(url = url, headers = headers, onFinalPlaybackError = onPlaybackError)
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
     val wasPlaying = remember { mutableStateOf(true) }
