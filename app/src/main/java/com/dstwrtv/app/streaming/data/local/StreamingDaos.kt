@@ -83,12 +83,12 @@ interface StreamingFavoriteDao {
     @Query("SELECT * FROM streaming_favorites ORDER BY addedAt DESC")
     fun observeAll(): Flow<List<StreamingFavoriteEntity>>
 
-    @Query("SELECT EXISTS(SELECT 1 FROM streaming_favorites WHERE mediaType = :mediaType AND tmdbId = :tmdbId AND seasonNumber IS :seasonNumber AND episodeNumber IS :episodeNumber)")
-    suspend fun exists(mediaType: String, tmdbId: Int, seasonNumber: Int?, episodeNumber: Int?): Boolean
+    @Query("SELECT EXISTS(SELECT 1 FROM streaming_favorites WHERE mediaType = :mediaType AND tmdbId = :tmdbId AND seasonNumber = :seasonNumber AND episodeNumber = :episodeNumber)")
+    suspend fun exists(mediaType: String, tmdbId: Int, seasonNumber: Int, episodeNumber: Int): Boolean
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(item: StreamingFavoriteEntity)
 
-    @Query("DELETE FROM streaming_favorites WHERE mediaType = :mediaType AND tmdbId = :tmdbId AND seasonNumber IS :seasonNumber AND episodeNumber IS :episodeNumber")
-    suspend fun delete(mediaType: String, tmdbId: Int, seasonNumber: Int?, episodeNumber: Int?)
+    @Query("DELETE FROM streaming_favorites WHERE mediaType = :mediaType AND tmdbId = :tmdbId AND seasonNumber = :seasonNumber AND episodeNumber = :episodeNumber")
+    suspend fun delete(mediaType: String, tmdbId: Int, seasonNumber: Int, episodeNumber: Int)
 }
