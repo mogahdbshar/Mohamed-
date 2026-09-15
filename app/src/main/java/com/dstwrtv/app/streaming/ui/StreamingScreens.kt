@@ -39,7 +39,7 @@ fun StreamingView(viewModel: StreamingViewModel, onOpenPlayer: (String, String) 
     val query by viewModel.query.collectAsState(); val movies by viewModel.movies.collectAsState(); val shows by viewModel.shows.collectAsState(); val searchMovies by viewModel.searchMovies.collectAsState(); val searchShows by viewModel.searchShows.collectAsState(); val movie by viewModel.selectedMovie.collectAsState(); val show by viewModel.selectedShow.collectAsState(); val seasons by viewModel.seasons.collectAsState(); val episodes by viewModel.episodes.collectAsState(); val result by viewModel.sourceResult.collectAsState(); val selected by viewModel.selectedSource.collectAsState(); val loading by viewModel.loading.collectAsState(); val error by viewModel.error.collectAsState()
     when {
         movie != null -> MovieDetailsScreen(movie!!, result, selected, loading, error, viewModel::closeDetails, { viewModel.discoverMovie(movie!!) }, { viewModel.selectSource(it); onOpenPlayer(it.url, movie!!.title) })
-        show != null -> TvDetailsScreen(show!!, seasons, episodes, result, selected, loading, error, viewModel::closeDetails, { viewModel.openSeason(show!!, it) }, { viewModel.discoverEpisode(show!!, it) }, { viewModel.selectSource(it); onOpenPlayer(it.url, "${show!!.name} - ${it.label}") })
+        show != null -> TvDetailsScreen(show!!, seasons, episodes, result, selected, loading, error, viewModel::closeDetails, { viewModel.openSeason(show!!, it) }, { viewModel.discoverEpisode(show!!, it) }, { viewModel.selectSource(it); onOpenPlayer(it.url, "${show!!.name} - ${it.name}") })
         else -> StreamingHomeScreen(query, if (query.isBlank()) movies else searchMovies, if (query.isBlank()) shows else searchShows, loading, viewModel::setQuery, viewModel::openMovie, viewModel::openShow, viewModel::refreshCatalog, error)
     }
 }
@@ -48,7 +48,7 @@ fun StreamingView(viewModel: StreamingViewModel, onOpenPlayer: (String, String) 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 110.dp)) {
         Column(Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) { Text("المشاهدة", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Black); Text("أفلام ومسلسلات في مكان واحد", color = DSTWRTheme.TextMuted, fontSize = 13.sp); Spacer(Modifier.height(14.dp)); OutlinedTextField(value = query, onValueChange = onQuery, modifier = Modifier.fillMaxWidth(), singleLine = true, leadingIcon = { Icon(Icons.Rounded.Search, null) }, trailingIcon = if (query.isNotBlank()) ({ IconButton(onClick = { onQuery("") }) { Icon(Icons.Rounded.Close, null) } }) else null, placeholder = { Text("ابحث عن فيلم أو مسلسل") }, shape = RoundedCornerShape(20.dp)) }
         if (loading && movies.isEmpty() && shows.isEmpty()) Box(Modifier.fillMaxWidth().height(240.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-        MediaSection("أفلام", movies, onMovie = onMovie); MediaSection("مسلسلات", shows, onShow = onShow)
+        MediaSection("أفلام", movies, onMovie = onMovie); MediaSection("مسلسلات", shows = shows, onShow = onShow)
         if (!loading && movies.isEmpty() && shows.isEmpty()) EmptyState(error ?: "لا توجد نتائج متاحة حاليًا", onRefresh)
     }
 }
