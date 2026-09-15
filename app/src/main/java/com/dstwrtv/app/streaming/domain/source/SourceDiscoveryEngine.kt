@@ -22,6 +22,7 @@ class SourceDiscoveryEngine(
         val deferred = mutex.withLock {
             inFlight[key] ?: scope.async {
                 val started = System.currentTimeMillis()
+                val providers = registry.all()
                 val resolution = sourceEngine.resolve(
                     SourceRequest(
                         mediaType = request.mediaType,
@@ -29,20 +30,18 @@ class SourceDiscoveryEngine(
                         providerId = request.providerId,
                         seasonNumber = request.seasonNumber,
                         episodeNumber = request.episodeNumber,
-                        preferredLanguage = request.preferredLanguage
-                    ),
-                    maxSources = 12
+                        preferredLanguage = request.preferredLanguage,
+                        title = request.title
+                    ), maxSources = 12
                 )
-                val sources = SourceSelectionPolicy.rank(
-                    resolution.sources,
-                    request.preferredLanguage,
-                    request.preferredQuality
-                ).take(12)
-                cache.put(key, sources)
+                val sources = SourceSelectionPolicy.rank(resolution.sources, request.preferredLanguage, request.preferredQuality).take(12)
+                if (sources.isNotEmpty()) cache.put(key, sources)
                 SourceDiscoveryResult(
                     sources = sources,
-                    attemptedProviders = registry.all().size,
-                    successfulProviders = if (sources.isNotEmpty()) 1 else 0,
+                    attemptedProviders = providers.count { it.id.isNotBlank() },
+                    successfulProviders = if (sources.isEmpty()) 0 else providers.count { provider ->
+                        resolution.sources.any { source -> source.label.startsWith(provider.id, ignoreCase = true) }
+                    }.coerceAtLeast(1).coerceAtMost(providers.size),
                     durationMs = System.currentTimeMillis() - started
                 )
             }.also { inFlight[key] = it }
@@ -53,12 +52,9 @@ class SourceDiscoveryEngine(
     }
 
     private fun requestKey(request: SourceDiscoveryRequest): String = listOf(
-        request.mediaType.name,
-        request.provider.lowercase(),
-        request.providerId,
-        request.seasonNumber ?: 0,
-        request.episodeNumber ?: 0,
-        request.preferredLanguage.orEmpty().lowercase(),
-        request.preferredQuality ?: 0
+        request.mediaType.name, request.provider.lowercase(), request.providerId,
+        request.seasonNumber ?: 0, request.episodeNumber ?: 0,
+        request.preferredLanguage.orEmpty().lowercase(), request.preferredQuality ?: 0,
+        request.title.orEmpty().lowercase()
     ).joinToString(":")
 }
