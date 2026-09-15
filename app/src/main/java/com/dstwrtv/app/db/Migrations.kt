@@ -3,7 +3,6 @@ package com.dstwrtv.app.db
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-/** Existing IPTV data is never removed by streaming migrations. */
 val MIGRATION_1_2 = object : Migration(1, 2) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL("""CREATE TABLE IF NOT EXISTS streaming_movies (id INTEGER NOT NULL,title TEXT NOT NULL,originalTitle TEXT,overview TEXT,releaseDate TEXT,rating REAL NOT NULL,voteCount INTEGER NOT NULL,runtimeMinutes INTEGER,genreIds TEXT NOT NULL,posterPath TEXT,backdropPath TEXT,updatedAt INTEGER NOT NULL,PRIMARY KEY(id))""")
@@ -20,7 +19,6 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
     }
 }
 
-/** Provider identity columns let multiple metadata providers represent one title. */
 val MIGRATION_2_3 = object : Migration(2, 3) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL("ALTER TABLE streaming_movies ADD COLUMN provider TEXT NOT NULL DEFAULT 'tmdb'")
@@ -35,5 +33,8 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
         db.execSQL("CREATE INDEX IF NOT EXISTS index_streaming_tv_provider ON streaming_tv_shows(provider,providerId)")
         db.execSQL("CREATE INDEX IF NOT EXISTS index_streaming_seasons_provider ON streaming_seasons(provider,providerId)")
         db.execSQL("CREATE INDEX IF NOT EXISTS index_streaming_episodes_provider ON streaming_episodes(provider,providerId)")
+        db.execSQL("CREATE TABLE IF NOT EXISTS streaming_media_identity (mediaType TEXT NOT NULL,provider TEXT NOT NULL,providerId TEXT NOT NULL,imdbId TEXT,tmdbId INTEGER,tvMazeId INTEGER,canonicalTitle TEXT NOT NULL,year INTEGER,updatedAt INTEGER NOT NULL,PRIMARY KEY(mediaType,provider,providerId))")
+        db.execSQL("CREATE TABLE IF NOT EXISTS streaming_catalog_cache (cacheKey TEXT NOT NULL,provider TEXT NOT NULL,page INTEGER NOT NULL,mediaType TEXT NOT NULL,payload TEXT NOT NULL,storedAt INTEGER NOT NULL,PRIMARY KEY(cacheKey))")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_streaming_catalog_cache_provider_page ON streaming_catalog_cache(provider,mediaType,page)")
     }
 }
