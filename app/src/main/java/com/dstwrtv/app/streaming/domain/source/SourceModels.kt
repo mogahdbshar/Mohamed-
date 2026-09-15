@@ -21,7 +21,8 @@ data class SourceRequest(
     val seasonNumber: Int? = null,
     val episodeNumber: Int? = null,
     val preferredLanguage: String? = null,
-    val title: String? = null
+    val title: String? = null,
+    val displayTitle: String? = null
 ) {
     val contentKey: String get() = providerId?.let { "${provider.orEmpty()}:$it" } ?: tmdbId?.toString() ?: error("A providerId or tmdbId is required")
     val episodeKey: String get() = buildString { append(contentKey); seasonNumber?.let { append(":s").append(it) }; episodeNumber?.let { append(":e").append(it) } }
