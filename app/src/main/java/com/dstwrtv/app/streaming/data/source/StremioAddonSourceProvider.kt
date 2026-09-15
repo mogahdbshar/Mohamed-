@@ -27,13 +27,14 @@ class StremioAddonSourceProvider(
             MediaType.MOVIE -> "movie"
             MediaType.TV_SHOW -> "series"
         }
-        val id = request.providerId.trim()
+        val id = request.providerId?.trim().orEmpty()
         if (id.isBlank()) return@withContext emptyList()
         val streamId = buildString {
             append(id)
             if (request.mediaType == MediaType.TV_SHOW) {
-                append(":").append(request.seasonNumber ?: return@withContext emptyList())
-                append(":").append(request.episodeNumber ?: return@withContext emptyList())
+                val season = request.seasonNumber ?: return@withContext emptyList()
+                val episode = request.episodeNumber ?: return@withContext emptyList()
+                append(":").append(season).append(":").append(episode)
             }
         }
         val endpoint = baseUrl.trimEnd('/').toHttpUrl().newBuilder()
