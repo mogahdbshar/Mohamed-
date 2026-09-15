@@ -19,11 +19,19 @@ data class PlaybackSource(
 
 data class SourceRequest(
     val mediaType: MediaType,
-    val tmdbId: Int,
+    val tmdbId: Int? = null,
+    val provider: String? = null,
+    val providerId: String? = null,
     val seasonNumber: Int? = null,
     val episodeNumber: Int? = null,
     val preferredLanguage: String? = null
-)
+) {
+    /** Stable identity for providers that do not use TMDB IDs. */
+    val contentKey: String
+        get() = providerId?.let { "${provider.orEmpty()}:$it" }
+            ?: tmdbId?.toString()
+            ?: error("A providerId or tmdbId is required")
+}
 
 data class SourceProviderHealth(
     val providerId: String,
