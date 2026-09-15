@@ -32,58 +32,34 @@ fun HomeScreen(viewModel: MainViewModel, isInPipMode: Boolean = false) {
     val sharedPrefs = remember { context.getSharedPreferences("dstwr_prefs", android.content.Context.MODE_PRIVATE) }
     var ambientGlowEnabled by remember { mutableStateOf(sharedPrefs.getBoolean("ambient_glow_enabled", true)) }
     var activeThemeId by remember { mutableStateOf(sharedPrefs.getString("selected_theme_id", "crimson_gold") ?: "crimson_gold") }
-    val channels by viewModel.filteredChannels.collectAsState()
-    val favorites by viewModel.favoriteChannels.collectAsState()
-    val selectedChannel by viewModel.selectedChannel.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
-    val syncError by viewModel.syncError.collectAsState()
-    val searchQuery by viewModel.searchQuery.collectAsState()
-    val configUpdated by viewModel.configUpdated.collectAsState()
+    val channels by viewModel.filteredChannels.collectAsState(); val favorites by viewModel.favoriteChannels.collectAsState(); val selectedChannel by viewModel.selectedChannel.collectAsState(); val isLoading by viewModel.isLoading.collectAsState(); val syncError by viewModel.syncError.collectAsState(); val searchQuery by viewModel.searchQuery.collectAsState(); val configUpdated by viewModel.configUpdated.collectAsState()
     val streamingViewModel: StreamingViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+    var currentTab by remember { mutableStateOf("home") }; var showSplash by remember { mutableStateOf(true) }; var showOnboarding by remember(remoteConfigManager.showOnboardingAlways) { mutableStateOf(!sharedPrefs.getBoolean("is_onboarded_v2_new", false) || remoteConfigManager.showOnboardingAlways) }; var isFullscreen by remember { mutableStateOf(false) }; var vodUrl by remember { mutableStateOf("") }; var vodTitle by remember { mutableStateOf("") }
+    val snackbarHostState = remember { SnackbarHostState() }; val coroutineScope = rememberCoroutineScope(); var activeBouquetDetail by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(activeThemeId, selectedChannel) {
-        applyThemeStyle(activeThemeId)
-        if (activeThemeId == "dynamic_chameleon") {
-            DSTWRTheme.PrimaryRed = getChannelAmbientColor(selectedChannel)
-            DSTWRTheme.AccentAmber = Color(0xFFFAFAFA)
-            DSTWRTheme.PureBlack = Color(0xFF030305)
-            DSTWRTheme.SurfaceDark = Color(0x1AFFFFFF)
-        }
-    }
-
-    var currentTab by remember { mutableStateOf("home") }
-    var showSplash by remember { mutableStateOf(true) }
-    var showOnboarding by remember(remoteConfigManager.showOnboardingAlways) { mutableStateOf(!sharedPrefs.getBoolean("is_onboarded_v2_new", false) || remoteConfigManager.showOnboardingAlways) }
-    var isFullscreen by remember { mutableStateOf(false) }
-    val snackbarHostState = remember { SnackbarHostState() }
-    val coroutineScope = rememberCoroutineScope()
-    var activeBouquetDetail by remember { mutableStateOf<String?>(null) }
-
+    LaunchedEffect(activeThemeId, selectedChannel) { applyThemeStyle(activeThemeId); if (activeThemeId == "dynamic_chameleon") { DSTWRTheme.PrimaryRed = getChannelAmbientColor(selectedChannel); DSTWRTheme.AccentAmber = Color(0xFFFAFAFA); DSTWRTheme.PureBlack = Color(0xFF030305); DSTWRTheme.SurfaceDark = Color(0x1AFFFFFF) } }
     LaunchedEffect(selectedChannel) { if (selectedChannel != null) { activeBouquetDetail = selectedChannel?.category; currentTab = "bouquets" } }
-    LaunchedEffect(Unit) {
-        delay(2400); showSplash = false
-        if (!com.dstwrtv.app.core.util.NetworkUtils.isInternetAvailable(context)) snackbarHostState.showSnackbar("لا يوجد اتصال بالإنترنت. يتم تصفح البث من الذاكرة المحلية والاحتياطية", duration = SnackbarDuration.Short)
-    }
+    LaunchedEffect(Unit) { delay(2400); showSplash = false; if (!com.dstwrtv.app.core.util.NetworkUtils.isInternetAvailable(context)) snackbarHostState.showSnackbar("لا يوجد اتصال بالإنترنت. يتم تصفح البث من الذاكرة المحلية والاحتياطية", duration = SnackbarDuration.Short) }
 
     if (showSplash) SplashView() else RemoteControlProtectionOverlay(config = remoteConfigManager, configUpdated = configUpdated) {
-        if (showOnboarding) {
-            OnboardingView(viewModel = viewModel, onComplete = { showOnboarding = false; coroutineScope.launch { snackbarHostState.showSnackbar("تمت مزامنة وتفعيل الباقات بنجاح!") } })
-        } else {
+        if (showOnboarding) OnboardingView(viewModel = viewModel, onComplete = { showOnboarding = false; coroutineScope.launch { snackbarHostState.showSnackbar("تمت مزامنة وتفعيل الباقات بنجاح!") } }) else {
             Box(Modifier.fillMaxSize().background(DSTWRTheme.PureBlack)) {
                 Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(DSTWRTheme.PrimaryRed.copy(alpha = .08f), Color.Transparent), center = androidx.compose.ui.geometry.Offset(0f, 0f), radius = 1800f)))
-                val infiniteTransition = rememberInfiniteTransition(label = "ambient_glow")
-                val pulseAlpha by infiniteTransition.animateFloat(if (selectedChannel != null) .12f else .03f, if (selectedChannel != null) .28f else .08f, infiniteRepeatable(tween(5000, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "pulse")
-                val currentGlowColor = if (ambientGlowEnabled) getChannelAmbientColor(selectedChannel) else Color(0xFF321A4B)
+                val infiniteTransition = rememberInfiniteTransition(label = "ambient_glow"); val pulseAlpha by infiniteTransition.animateFloat(if (selectedChannel != null || vodUrl.isNotBlank()) .12f else .03f, if (selectedChannel != null || vodUrl.isNotBlank()) .28f else .08f, infiniteRepeatable(tween(5000, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "pulse"); val currentGlowColor = if (ambientGlowEnabled) getChannelAmbientColor(selectedChannel) else Color(0xFF321A4B)
                 Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(if (ambientGlowEnabled) currentGlowColor.copy(alpha = pulseAlpha) else Color(0x1F321A4B), if (ambientGlowEnabled && selectedChannel != null) currentGlowColor.copy(alpha = pulseAlpha * .3f) else Color(0x0602010A), Color.Transparent), radius = 2800f)))
                 Column(Modifier.fillMaxSize()) {
                     if (!isFullscreen && !isInPipMode) DSTWRHeader(onActionClick = { currentTab = "settings"; activeBouquetDetail = null })
-                    selectedChannel?.let { activeCh ->
-                        ActiveChannelPlayerSection(activeCh = activeCh, isFullscreen = isFullscreen, onFullscreenToggle = { isFullscreen = it }, onClose = { viewModel.selectChannel(null); isFullscreen = false }, isFavorite = favorites.any { it.url == activeCh.url }, onToggleFavorite = { viewModel.toggleFavorite(activeCh) }, isInPipMode = isInPipMode)
+                    if (vodUrl.isNotBlank()) {
+                        Column(if (isFullscreen) Modifier.fillMaxSize() else Modifier.fillMaxWidth()) {
+                            VideoPlayer(url = vodUrl, channelName = vodTitle, isFullscreen = isFullscreen, onFullscreenToggle = { isFullscreen = !isFullscreen }, onClose = { vodUrl = ""; vodTitle = ""; isFullscreen = false }, modifier = if (isFullscreen) Modifier.fillMaxSize() else Modifier.fillMaxWidth().aspectRatio(16f / 9f), isInPipMode = isInPipMode)
+                            if (!isFullscreen && !isInPipMode) Text(vodTitle, color = Color.White, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
+                        }
                     }
+                    selectedChannel?.let { activeCh -> if (vodUrl.isBlank()) ActiveChannelPlayerSection(activeCh = activeCh, isFullscreen = isFullscreen, onFullscreenToggle = { isFullscreen = it }, onClose = { viewModel.selectChannel(null); isFullscreen = false }, isFavorite = favorites.any { it.url == activeCh.url }, onToggleFavorite = { viewModel.toggleFavorite(activeCh) }, isInPipMode = isInPipMode) }
                     if (!isFullscreen && !isInPipMode) Box(Modifier.weight(1f)) {
                         when (currentTab) {
                             "home" -> HomeView(channels = channels, selectedChannel = selectedChannel, isLoading = isLoading, syncError = syncError, searchQuery = searchQuery, onSearchChange = viewModel::setSearchQuery, onChannelSelect = viewModel::selectChannel, onToggleFavorite = viewModel::toggleFavorite, favorites = favorites, onSwitchTab = { tab, bouquet -> currentTab = tab; activeBouquetDetail = bouquet })
-                            "streaming" -> StreamingView(streamingViewModel)
+                            "streaming" -> StreamingView(streamingViewModel, onOpenPlayer = { url, title -> viewModel.selectChannel(null); vodUrl = url; vodTitle = title; currentTab = "streaming" })
                             "channels" -> ChannelsView(channels = channels, selectedChannel = selectedChannel, onChannelSelect = viewModel::selectChannel, onToggleFavorite = viewModel::toggleFavorite, favorites = favorites, searchQuery = searchQuery, onSearchChange = viewModel::setSearchQuery)
                             "bouquets" -> BouquetsView(channels = channels, selectedChannel = selectedChannel, onChannelSelect = viewModel::selectChannel, onToggleFavorite = viewModel::toggleFavorite, favorites = favorites, activeBouquetDetail = activeBouquetDetail, onSelectBouquet = { activeBouquetDetail = it }, onBackToGrid = { activeBouquetDetail = null })
                             "favorites" -> FavoritesView(favorites = favorites, selectedChannel = selectedChannel, onChannelSelect = viewModel::selectChannel, onToggleFavorite = viewModel::toggleFavorite)
