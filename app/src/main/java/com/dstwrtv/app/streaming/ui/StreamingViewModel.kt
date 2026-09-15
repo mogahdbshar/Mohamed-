@@ -62,8 +62,8 @@ class StreamingViewModel : ViewModel() {
         val (movieResult, tvResult) = awaitAll(async { engine.popularMovies() }, async { engine.popularTvShows() })
         @Suppress("UNCHECKED_CAST") val m = movieResult as Result<com.dstwrtv.app.streaming.domain.model.CatalogPage<Movie>>
         @Suppress("UNCHECKED_CAST") val t = tvResult as Result<com.dstwrtv.app.streaming.domain.model.CatalogPage<TvShow>>
-        m.onSuccess { page -> _movies.value = translateMovies(page.items) }.onFailure { _error.value = it.message }
-        t.onSuccess { page -> _shows.value = translateShows(page.items) }.onFailure { if (_error.value == null) _error.value = it.message }
+        m.onSuccess { page -> _movies.value = translateMovieCards(page.items) }.onFailure { _error.value = it.message }
+        t.onSuccess { page -> _shows.value = translateShowCards(page.items) }.onFailure { if (_error.value == null) _error.value = it.message }
         _loading.value = false
     }
 
@@ -75,8 +75,8 @@ class StreamingViewModel : ViewModel() {
             val (m, t) = awaitAll(async { engine.searchMovies(value) }, async { engine.searchTvShows(value) })
             @Suppress("UNCHECKED_CAST") val mr = m as Result<com.dstwrtv.app.streaming.domain.model.CatalogPage<Movie>>
             @Suppress("UNCHECKED_CAST") val tr = t as Result<com.dstwrtv.app.streaming.domain.model.CatalogPage<TvShow>>
-            _searchMovies.value = mr.getOrNull()?.items?.let { translateMovies(it) }.orEmpty()
-            _searchShows.value = tr.getOrNull()?.items?.let { translateShows(it) }.orEmpty()
+            _searchMovies.value = mr.getOrNull()?.items?.let { translateMovieCards(it) }.orEmpty()
+            _searchShows.value = tr.getOrNull()?.items?.let { translateShowCards(it) }.orEmpty()
             _loading.value = false
         }
     }
@@ -135,8 +135,8 @@ class StreamingViewModel : ViewModel() {
     fun selectSource(source: PlaybackSource) { _selectedSource.value = source }
     fun clearPlayback() { _sourceResult.value = null; _selectedSource.value = null }
 
-    private suspend fun translateMovies(items: List<Movie>): List<Movie> = items.map { translateMovie(it) }
-    private suspend fun translateShows(items: List<TvShow>): List<TvShow> = items.map { translateShow(it) }
+    private suspend fun translateMovieCards(items: List<Movie>): List<Movie> = items.map { it.copy(title = translator.translate(it.title)) }
+    private suspend fun translateShowCards(items: List<TvShow>): List<TvShow> = items.map { it.copy(name = translator.translate(it.name)) }
     private suspend fun translateMovie(item: Movie): Movie = item.copy(title = translator.translate(item.title), overview = item.overview?.let { translator.translate(it) }, originalTitle = item.originalTitle)
     private suspend fun translateShow(item: TvShow): TvShow = item.copy(name = translator.translate(item.name), overview = item.overview?.let { translator.translate(it) }, originalName = item.originalName)
     private suspend fun translateSeason(item: Season): Season = item.copy(name = translator.translate(item.name), overview = item.overview?.let { translator.translate(it) })
