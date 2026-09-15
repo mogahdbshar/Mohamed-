@@ -47,7 +47,11 @@ object StreamingContainer {
         )
     }
 
-    /** Provider adapters are registered centrally and can be populated by remote configuration later. */
+    /**
+     * Source adapters are registered here. The engine reads this registry at
+     * resolution time, so future runtime configuration can add/remove adapters
+     * without rebuilding the application object graph.
+     */
     val sourceRegistry: SourceRegistry by lazy {
         SourceRegistry(emptyList<SourceProvider>())
     }
@@ -56,7 +60,7 @@ object StreamingContainer {
 
     val sourceEngine: SourceEngine by lazy {
         SourceEngine(
-            providers = sourceRegistry.all(),
+            providersSupplier = { sourceRegistry.all() },
             healthStore = sourceHealthStore,
             maxConcurrentProviders = 4
         )
