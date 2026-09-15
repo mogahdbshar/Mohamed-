@@ -11,9 +11,9 @@ object CatalogSections {
     )
 
     fun tvDefaults(): List<CatalogSection> = listOf(
-        CatalogSection("tv_trending", "Trending Series", CatalogQuery(MediaType.TV, sort = CatalogSort.TRENDING)),
-        CatalogSection("tv_popular", "Popular Series", CatalogQuery(MediaType.TV, sort = CatalogSort.POPULAR)),
-        CatalogSection("tv_rated", "Top Rated Series", CatalogQuery(MediaType.TV, sort = CatalogSort.RATING)),
-        CatalogSection("tv_new", "New Series", CatalogQuery(MediaType.TV, sort = CatalogSort.NEWEST))
+        CatalogSection("tv_trending", "Trending Series", CatalogQuery(MediaType.TV_SHOW, sort = CatalogSort.TRENDING)),
+        CatalogSection("tv_popular", "Popular Series", CatalogQuery(MediaType.TV_SHOW, sort = CatalogSort.POPULAR)),
+        CatalogSection("tv_rated", "Top Rated Series", CatalogQuery(MediaType.TV_SHOW, sort = CatalogSort.RATING)),
+        CatalogSection("tv_new", "New Series", CatalogQuery(MediaType.TV_SHOW, sort = CatalogSort.NEWEST))
     )
 }
