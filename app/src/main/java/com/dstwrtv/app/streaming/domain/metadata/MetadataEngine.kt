@@ -65,10 +65,7 @@ class MetadataEngine(
         if (pages.isEmpty()) error("No metadata provider returned movie data")
         val merged = linkedMapOf<String, Movie>()
         pages.forEach { page ->
-            page.items.forEach { movie ->
-                val key = movie.providerId?.lowercase() ?: "${movie.title.lowercase()}|${movie.releaseDate.orEmpty()}"
-                merged.putIfAbsent(key, movie)
-            }
+            page.items.forEach { movie -> merged.putIfAbsent(canonicalMovieKey(movie), movie) }
         }
         CatalogPage(
             page = pages.minOf { it.page },
@@ -87,10 +84,7 @@ class MetadataEngine(
         if (pages.isEmpty()) error("No metadata provider returned TV data")
         val merged = linkedMapOf<String, TvShow>()
         pages.forEach { page ->
-            page.items.forEach { show ->
-                val key = show.providerId?.lowercase() ?: "${show.name.lowercase()}|${show.firstAirDate.orEmpty()}"
-                merged.putIfAbsent(key, show)
-            }
+            page.items.forEach { show -> merged.putIfAbsent(canonicalTvKey(show), show) }
         }
         CatalogPage(
             page = pages.minOf { it.page },
@@ -99,6 +93,23 @@ class MetadataEngine(
             items = merged.values.toList()
         )
     }
+
+    private fun canonicalMovieKey(movie: Movie): String {
+        val providerId = movie.providerId.orEmpty().lowercase()
+        if (providerId.startsWith("tt")) return "imdb:$providerId"
+        return "movie:${normalize(movie.title)}:${movie.releaseDate.orEmpty().take(4)}"
+    }
+
+    private fun canonicalTvKey(show: TvShow): String {
+        val providerId = show.providerId.orEmpty().lowercase()
+        if (providerId.startsWith("tt")) return "imdb:$providerId"
+        return "tv:${normalize(show.name)}:${show.firstAirDate.orEmpty().take(4)}"
+    }
+
+    private fun normalize(value: String): String = value
+        .lowercase()
+        .replace(Regex("[^\\p{L}\\p{N}]+"), " ")
+        .trim()
 
     private suspend fun <T> firstSuccessful(
         providerId: String,
