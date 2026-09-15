@@ -6,18 +6,16 @@ import com.dstwrtv.app.streaming.data.remote.TvMazeApi
 import com.dstwrtv.app.streaming.data.remote.TvMazeMetadataProvider
 import com.dstwrtv.app.streaming.domain.metadata.MetadataEngine
 import com.dstwrtv.app.streaming.domain.source.InMemorySourceHealthStore
+import com.dstwrtv.app.streaming.domain.source.SourceDiscoveryEngine
 import com.dstwrtv.app.streaming.domain.source.SourceEngine
+import com.dstwrtv.app.streaming.domain.source.SourceProvider
+import com.dstwrtv.app.streaming.domain.source.SourceRegistry
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
 import java.util.concurrent.TimeUnit
 
-/**
- * Composition root for the streaming subsystem.
- * No user-supplied API key is required for the baseline metadata engine.
- * Keyed providers such as TMDB remain optional adapters and are not required
- * for the baseline catalog to operate.
- */
+/** Central dependency graph for metadata, source discovery and playback services. */
 object StreamingContainer {
     private val httpClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
@@ -29,21 +27,15 @@ object StreamingContainer {
     }
 
     private val cinemetaApi: CinemetaApi by lazy {
-        Retrofit.Builder()
-            .baseUrl("https://v3-cinemeta.strem.io/")
-            .client(httpClient)
-            .addConverterFactory(MoshiConverterFactory.create())
-            .build()
-            .create(CinemetaApi::class.java)
+        Retrofit.Builder().baseUrl("https://v3-cinemeta.strem.io/")
+            .client(httpClient).addConverterFactory(MoshiConverterFactory.create())
+            .build().create(CinemetaApi::class.java)
     }
 
     private val tvMazeApi: TvMazeApi by lazy {
-        Retrofit.Builder()
-            .baseUrl("https://api.tvmaze.com/")
-            .client(httpClient)
-            .addConverterFactory(MoshiConverterFactory.create())
-            .build()
-            .create(TvMazeApi::class.java)
+        Retrofit.Builder().baseUrl("https://api.tvmaze.com/")
+            .client(httpClient).addConverterFactory(MoshiConverterFactory.create())
+            .build().create(TvMazeApi::class.java)
     }
 
     val metadataEngine: MetadataEngine by lazy {
@@ -55,10 +47,22 @@ object StreamingContainer {
         )
     }
 
+    /** Provider adapters are registered centrally and can be populated by remote configuration later. */
+    val sourceRegistry: SourceRegistry by lazy {
+        SourceRegistry(emptyList<SourceProvider>())
+    }
+
+    private val sourceHealthStore by lazy { InMemorySourceHealthStore() }
+
     val sourceEngine: SourceEngine by lazy {
         SourceEngine(
-            providers = emptyList(),
-            healthStore = InMemorySourceHealthStore()
+            providers = sourceRegistry.all(),
+            healthStore = sourceHealthStore,
+            maxConcurrentProviders = 4
         )
+    }
+
+    val sourceDiscoveryEngine: SourceDiscoveryEngine by lazy {
+        SourceDiscoveryEngine(sourceRegistry, sourceEngine)
     }
 }
